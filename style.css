@@ -72,7 +72,7 @@ main{display:block;margin-top:6px}
 .btn.big{width:100%;min-height:50px;font-size:17px}
 .btn.danger{color:var(--bad-ink);background:var(--bad-bg);border-color:transparent}
 .btn.ghost{background:transparent}
-select,input[type=text],input[type=number],input[type=search]{
+select,textarea,input[type=text],input[type=number],input[type=search]{
   width:100%;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;
   background:var(--bg);font-size:16px
 }
@@ -183,3 +183,14 @@ tr:last-child td{border-bottom:0}
 .lg-main strong{overflow-wrap:anywhere}
 .lg-main .pmeta,.lg-main .when{font-size:13px;color:var(--muted)}
 .btn.sm{min-height:34px;padding:4px 10px;font-size:13px;flex:none}
+
+/* التفعيل */
+textarea{resize:vertical;direction:ltr;text-align:left;font-family:Consolas,ui-monospace,monospace;font-size:13px}
+html.locked #app{display:none}
+.lock{max-width:520px;margin:0 auto;padding-top:20px}
+.lock-card{display:flex;flex-direction:column;gap:12px}
+.lock-card h1,.lock-card h2,.lock-card p{margin:0}
+.lock-card .row-actions .btn{flex:0 0 auto}
+#lock-dev{flex:1 1 160px;direction:ltr;text-align:center;font-weight:700;letter-spacing:.12em;font-size:18px}
+.lock-err{color:var(--bad-ink);min-height:1.2em}
+.lic-note{margin:8px 0 0;padding:6px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn-ink);font-size:13px}

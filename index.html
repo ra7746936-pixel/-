@@ -7,6 +7,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="style.css">
 <script>
+/* ===== إعدادات الترخيص: للنسخة اللي بتبعتها للعملاء بس ===== */
+var LICENSE_PUBLIC_KEY = '';
+var CONTACT_TEXT = 'للتفعيل أو التجديد كلّم: 01xxxxxxxxx';
+if(LICENSE_PUBLIC_KEY){ document.documentElement.className += ' locked'; }
+</script>
+<script>
 window.onerror=function(m){ window.__err=m; };
 setTimeout(function(){
   var s=document.getElementById('sync');
@@ -33,6 +39,7 @@ setTimeout(function(){
       <button class="tab" role="tab" data-tab="sup" id="t-sup">الموردين</button>
       <button class="tab" role="tab" data-tab="report" id="t-report">التقرير</button>
     </nav>
+    <p id="lic-note" class="lic-note" hidden></p>
   </header>
 
   <main>
@@ -222,7 +229,31 @@ setTimeout(function(){
     </section>
   </main>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div id="lock" class="lock" dir="rtl" hidden>
+  <div class="panel lock-card">
+    <h1>مخزني</h1>
+    <h2 id="lock-title">التطبيق محتاج تفعيل</h2>
+    <p class="hint" id="lock-msg"></p>
+    <div>
+      <label for="lock-dev">رقم جهازك (ابعته لينا عشان نعملك الكود)</label>
+      <div class="row-actions">
+        <input id="lock-dev" type="text" readonly>
+        <button class="btn" id="lock-copy" type="button">انسخ</button>
+      </div>
+    </div>
+    <div>
+      <label for="lock-code">كود التفعيل</label>
+      <textarea id="lock-code" rows="4" placeholder="الصق الكود هنا"></textarea>
+    </div>
+    <button class="btn primary big" id="lock-go" type="button">فعّل</button>
+    <p class="hint lock-err" id="lock-err"></p>
+    <p class="hint" id="lock-contact"></p>
+    <button class="btn ghost" id="lock-backup" type="button">حمّل نسخة احتياطية من بياناتك</button>
+  </div>
 </div>
 
 <script>
@@ -250,6 +281,10 @@ setTimeout(function(){
   var pendingDel = null, delTimer = null;
   var mode = 'pending';
   var db = null;
+  var LICENSE_KEY_JWK = window.LICENSE_PUBLIC_KEY || '';
+  var CONTACT = window.CONTACT_TEXT || '';
+  var locked = !!LICENSE_KEY_JWK;
+  var lic = null;
 
   /* ---------- حفظ ---------- */
   var LS_KEY = 'makhzani-v1';
@@ -277,6 +312,7 @@ setTimeout(function(){
     render();
   }
   function ready(){
+    if(locked){ toast('التطبيق مقفول. فعّله الأول.',true); return false; }
     if(mode==='pending'){ toast('استنى ثواني لحد ما البيانات تتحمّل',true); return false; }
     return true;
   }
@@ -869,10 +905,129 @@ setTimeout(function(){
   });
   $('#b-no').addEventListener('click',function(){ pendingRestore = null; $('#b-confirm').hidden = true; });
 
+  /* ---------- الترخيص ---------- */
+  var LIC_KEY = 'makhzani-license', SEEN_KEY = 'makhzani-seen', DEV_KEY = 'makhzani-device';
+
+  function getDeviceId(){
+    var id = null;
+    try{ id = localStorage.getItem(DEV_KEY); }catch(e){}
+    if(!id){
+      var al = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '', a = new Uint8Array(8);
+      try{ crypto.getRandomValues(a); }catch(e){ for(var j=0;j<8;j++) a[j] = Math.floor(Math.random()*256); }
+      for(var i=0;i<8;i++) s += al.charAt(a[i]%al.length);
+      id = s.slice(0,4)+'-'+s.slice(4);
+      try{ localStorage.setItem(DEV_KEY,id); }catch(e){}
+    }
+    return id;
+  }
+  function b64uToBytes(s){
+    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length%4) s += '=';
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function verifyCode(code){
+    return new Promise(function(resolve){
+      try{
+        if(!(window.crypto && crypto.subtle)) return resolve({ok:false,nosub:true});
+        var parts = String(code||'').replace(/\s+/g,'').split('.');
+        if(parts.length!==2) return resolve({ok:false});
+        var pb = b64uToBytes(parts[0]), sig = b64uToBytes(parts[1]);
+        var p = JSON.parse(new TextDecoder().decode(pb));
+        crypto.subtle.importKey('jwk',JSON.parse(LICENSE_KEY_JWK),{name:'ECDSA',namedCurve:'P-256'},false,['verify'])
+          .then(function(k){ return crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},k,sig,pb); })
+          .then(function(ok){ resolve(ok ? {ok:true,p:p} : {ok:false}); })
+          .catch(function(){ resolve({ok:false}); });
+      }catch(e){ resolve({ok:false}); }
+    });
+  }
+  function todayStr(){
+    var d = new Date(), z = function(n){ n = String(n); return n.length<2 ? '0'+n : n; };
+    return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
+  }
+  function daysBetween(a,b){
+    var x = a.split('-'), y = b.split('-');
+    return Math.round((Date.UTC(+y[0],y[1]-1,+y[2])-Date.UTC(+x[0],x[1]-1,+x[2]))/86400000);
+  }
+  function evalLicense(p){
+    if(!p || !/^\d{4}-\d{2}-\d{2}$/.test(String(p.e||'')) || String(p.d||'').toUpperCase()!==getDeviceId()) return {s:'device'};
+    var now = Date.now(), seen = 0;
+    try{ seen = +localStorage.getItem(SEEN_KEY) || 0; }catch(e){}
+    if(now < seen - 2*86400000) return {s:'clock'};
+    var left = daysBetween(todayStr(),p.e);
+    if(left<0) return {s:'expired',left:left};
+    try{ if(now>seen) localStorage.setItem(SEEN_KEY,String(now)); }catch(e){}
+    return {s:'ok',left:left};
+  }
+  function showLock(title,msg){
+    locked = true;
+    document.documentElement.className = (document.documentElement.className.replace(/\blocked\b/g,'')+' locked').replace(/\s+/g,' ');
+    $('#lock').hidden = false;
+    $('#lock-title').textContent = title;
+    $('#lock-msg').textContent = msg || '';
+    $('#lock-dev').value = getDeviceId();
+    $('#lock-contact').textContent = CONTACT;
+    $('#lic-note').hidden = true;
+  }
+  function hideLock(){
+    locked = false;
+    document.documentElement.className = document.documentElement.className.replace(/\blocked\b/g,'').replace(/\s+/g,' ');
+    $('#lock').hidden = true;
+  }
+  function updateNote(left){
+    var el = $('#lic-note');
+    if(left<=7){
+      el.textContent = 'الاشتراك ينتهي '+(left===0 ? 'النهارده' : 'بعد '+left+' يوم')+'. '+CONTACT;
+      el.hidden = false;
+    } else el.hidden = true;
+  }
+  function lockFor(e,p){
+    if(e.s==='expired') showLock('انتهى الاشتراك','الاشتراك انتهى يوم '+p.e+'. ابعت رقم جهازك واطلب كود التجديد.');
+    else if(e.s==='clock') showLock('تاريخ الجهاز غلط','ساعة الكمبيوتر راجعة لورا. اظبط التاريخ والوقت وهيشتغل تاني لوحده.');
+    else showLock('التطبيق محتاج تفعيل','ابعت رقم جهازك واطلب كود التفعيل.');
+  }
+  function licenseCheck(){
+    if(!LICENSE_KEY_JWK || mode==='db' || !lic) return;
+    var e = evalLicense(lic);
+    if(e.s==='ok'){ if(locked) hideLock(); updateNote(e.left); } else lockFor(e,lic);
+  }
+  function licenseStart(){
+    if(!LICENSE_KEY_JWK){ hideLock(); return; }
+    var saved = null;
+    try{ saved = localStorage.getItem(LIC_KEY); }catch(e){}
+    if(!saved){ showLock('التطبيق محتاج تفعيل','ابعت رقم جهازك واطلب كود التفعيل.'); return; }
+    verifyCode(saved).then(function(r){
+      if(!r.ok){ showLock('التطبيق محتاج تفعيل','الكود المحفوظ مش سليم. اطلب كود جديد.'); return; }
+      lic = r.p; licenseCheck();
+    });
+  }
+
+  $('#lock-copy').addEventListener('click',function(){
+    var i = $('#lock-dev'); i.select();
+    try{ document.execCommand('copy'); toast('اتنسخ رقم الجهاز'); }catch(e){}
+  });
+  $('#lock-backup').addEventListener('click',exportBackup);
+  $('#lock-go').addEventListener('click',function(){
+    var code = $('#lock-code').value, err = $('#lock-err');
+    err.textContent = '';
+    verifyCode(code).then(function(r){
+      if(r.nosub){ err.textContent = 'المتصفح ده مش بيدعم التفعيل. افتح الملف بمتصفح Chrome.'; return; }
+      if(!r.ok){ err.textContent = 'الكود غلط. اتأكد إنك نسخته كله.'; return; }
+      var e = evalLicense(r.p);
+      if(e.s==='device'){ err.textContent = 'الكود ده متعمل لجهاز تاني. ابعت رقم جهازك اللي فوق.'; return; }
+      if(e.s==='expired'){ err.textContent = 'الكود ده منتهي. اطلب كود جديد.'; return; }
+      if(e.s==='clock'){ err.textContent = 'ساعة الجهاز غلط. اظبط التاريخ وجرّب تاني.'; return; }
+      try{ localStorage.setItem(LIC_KEY,String(code).replace(/\s+/g,'')); }catch(x){}
+      lic = r.p; hideLock(); updateNote(e.left);
+      toast('اتفعّل التطبيق لحد '+r.p.e);
+    });
+  });
+
   /* ---------- بداية ---------- */
-  function startLocal(){ mode = 'local'; lsLoad(); render(); }
+  function startLocal(){ mode = 'local'; lsLoad(); render(); licenseStart(); }
   function startDb(c){
-    db = c; mode = 'db';
+    db = c; mode = 'db'; hideLock();
     var fail = function(err){ toast('مشكلة في الاتصال بالبيانات: '+((err&&err.message)||''),true); };
     db.collection('products').onSnapshot(function(snap){
       var m = new Map();
@@ -891,6 +1046,7 @@ setTimeout(function(){
     render();
   }
   render();
+  setInterval(licenseCheck,60000);
   var dbReq = null;
   try{ dbReq = window.claude ? window.claude.use('db') : null; }catch(e){ dbReq = null; }
   if(dbReq && dbReq.then){
