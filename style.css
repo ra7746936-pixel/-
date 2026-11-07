@@ -194,3 +194,11 @@ html.locked #app{display:none}
 #lock-dev{flex:1 1 160px;direction:ltr;text-align:center;font-weight:700;letter-spacing:.12em;font-size:18px}
 .lock-err{color:var(--bad-ink);min-height:1.2em}
 .lic-note{margin:8px 0 0;padding:6px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn-ink);font-size:13px}
+
+/* المرتجعات */
+.inv-act{grid-column:1 / -1;display:flex;gap:8px;align-items:center;margin-top:4px}
+.inv-edit{margin-bottom:14px;border-color:var(--accent)}
+.ie-add{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ie-add select{flex:1 1 180px;width:auto}
+.ie-add .btn{flex:0 0 auto}
+.inv-edit .row-actions{margin-top:10px}

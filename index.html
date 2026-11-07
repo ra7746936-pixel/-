@@ -208,6 +208,24 @@ setTimeout(function(){
     </section>
 
     <section id="v-report" aria-labelledby="t-report" hidden>
+      <div class="panel inv-edit" id="inv-edit" hidden>
+        <div class="sd-head">
+          <h2 id="ie-title">تعديل فاتورة</h2>
+          <button class="btn ghost sm" type="button" data-act="ie-close">إغلاق</button>
+        </div>
+        <p class="hint" id="ie-hint"></p>
+        <ul id="ie-lines" class="clist"></ul>
+        <div class="ie-add">
+          <select id="ie-add" aria-label="صنف يتضاف للفاتورة"></select>
+          <button class="btn" type="button" data-act="ie-addbtn">+ ضيف للفاتورة</button>
+        </div>
+        <div class="total"><span>إجمالي الفاتورة بعد التعديل</span><strong id="ie-total">0 ج.م</strong></div>
+        <p class="sum-line" id="ie-diff"></p>
+        <div class="row-actions">
+          <button class="btn primary" type="button" data-act="ie-save">احفظ التعديل</button>
+          <button class="btn danger" type="button" id="ie-cancel" data-act="ie-cancel">إلغاء الفاتورة كلها (مرتجع كامل)</button>
+        </div>
+      </div>
       <div class="seg" role="group" aria-label="الفترة">
         <button type="button" data-period="today" aria-pressed="true">النهارده</button>
         <button type="button" data-period="all" aria-pressed="false">من الأول</button>
@@ -285,6 +303,7 @@ setTimeout(function(){
   var CONTACT = window.CONTACT_TEXT || '';
   var locked = !!LICENSE_KEY_JWK;
   var lic = null;
+  var editSale = null, draft = [], pendingCancelInv = false, cancelInvTimer = null, lastIeOpts = '';
 
   /* ---------- حفظ ---------- */
   var LS_KEY = 'makhzani-v1';
@@ -363,7 +382,7 @@ setTimeout(function(){
   }
 
   /* ---------- رسم ---------- */
-  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderBackup(); }
+  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); }
 
   function renderStatus(){
     var el = $('#sync');
@@ -483,8 +502,110 @@ setTimeout(function(){
     var recent = sales.filter(function(s){ return period==='all' || s.ts>=r.t0; }).slice(0,15);
     $('#recent').innerHTML = recent.length ? recent.map(function(s){
       var when = new Date(s.ts).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
-      return '<li><span class="when">'+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span></li>';
+      var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
+      return '<li><span class="when">'+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
+        '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button>'+tag+'</div></li>';
     }).join('') : '<li class="note">مفيش فواتير في الفترة دي.</li>';
+  }
+
+  /* ---------- مرتجعات وتعديل الفواتير ---------- */
+  function findSale(id){ for(var i=0;i<sales.length;i++){ if(sales[i].id===id) return sales[i]; } return null; }
+  function maxFor(d){ var p = products.get(d.pid); return round(d.orig + (p ? p.qty : 0)); }
+  function draftTotal(){ var t = 0; draft.forEach(function(d){ t += d.qty*d.price; }); return round(t); }
+
+  function openInvEdit(sid){
+    var s = findSale(sid);
+    if(!s) return;
+    editSale = sid; pendingCancelInv = false;
+    draft = s.lines.map(function(l){ return {pid:l.pid,name:l.name,price:l.price,cost:(l.cost==null?null:l.cost),qty:l.qty,orig:l.qty}; });
+    render();
+    var el = $('#inv-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
+  }
+  function closeInvEdit(){ editSale = null; draft = []; pendingCancelInv = false; clearTimeout(cancelInvTimer); render(); }
+
+  function renderInvEdit(){
+    var box = $('#inv-edit'), s = editSale ? findSale(editSale) : null;
+    if(editSale && !s){ editSale = null; draft = []; }
+    box.hidden = !s;
+    if(!s) return;
+    $('#ie-title').textContent = 'تعديل فاتورة '+dt(s.ts);
+    $('#ie-hint').textContent = 'الفاتورة الأصلية '+money(s.total)+'. نقّص الكمية = مرتجع بيرجع للمخزن. زوّد أو ضيف صنف = بيتخصم من المخزن.';
+    $('#ie-lines').innerHTML = draft.map(function(d,i){
+      var note = d.qty===0 ? 'هيتشال من الفاتورة ويرجع للمخزن' : (d.orig>0 ? 'كان '+fmt(d.orig)+' · ' : 'صنف جديد · ')+fmt(d.price)+' × '+fmt(d.qty)+' = '+money(d.qty*d.price);
+      return '<li class="cline"><div class="cl-name">'+esc(d.name)+'<small>'+note+'</small></div>'+
+        '<div class="step"><button type="button" data-act="ie-dec" data-i="'+i+'" aria-label="نقّص">−</button>'+
+        '<input type="number" inputmode="decimal" min="0" step="any" value="'+d.qty+'" data-iqty="'+i+'" aria-label="الكمية">'+
+        '<button type="button" data-act="ie-inc" data-i="'+i+'" aria-label="زوّد">+</button></div>'+
+        '<button type="button" class="rm" data-act="ie-rm" data-i="'+i+'" aria-label="شيل الصنف">×</button></li>';
+    }).join('');
+    var opts = '<option value="">ضيف صنف تاني…</option>'+Array.from(products.values()).sort(byName).map(function(p){
+      return '<option value="'+esc(p.id)+'">'+esc(p.name)+' (فاضل '+fmt(p.qty)+')</option>';
+    }).join('');
+    if(opts!==lastIeOpts){ var sel = $('#ie-add'), cur = sel.value; sel.innerHTML = opts; if(cur) sel.value = cur; lastIeOpts = opts; }
+    var tot = draftTotal(), diff = round(tot - s.total);
+    $('#ie-total').textContent = money(tot);
+    $('#ie-diff').textContent = diff<0 ? 'ترجّع للعميل '+money(-diff) : diff>0 ? 'العميل يدفع فرق '+money(diff) : 'مفيش فرق في المبلغ';
+    $('#ie-cancel').textContent = pendingCancelInv ? 'متأكد؟ اضغط تاني' : 'إلغاء الفاتورة كلها (مرتجع كامل)';
+  }
+
+  function applySaleChange(ns,prods,delId){
+    prods.forEach(function(p){ products.set(p.id,p); });
+    if(ns) sales = sales.map(function(x){ return x.id===ns.id ? ns : x; });
+    else sales = sales.filter(function(x){ return x.id!==delId; });
+    persist(function(){
+      var ch = Promise.resolve();
+      prods.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
+      return ch.then(function(){ return ns ? db.doc('sales/'+ns.id).set(ns) : db.doc('sales/'+delId).delete(); });
+    });
+  }
+
+  function saveInvEdit(){
+    if(!ready()) return;
+    var s = findSale(editSale);
+    if(!s) return;
+    var kept = draft.filter(function(d){ return d.qty>0; });
+    if(!kept.length){ toast('مفيش أصناف في الفاتورة. لو عايز تلغيها كلها اضغط «إلغاء الفاتورة».',true); return; }
+    var upd = new Map(), bad = null;
+    draft.forEach(function(d){
+      var delta = round(d.qty-d.orig);
+      if(!delta) return;
+      var p = upd.get(d.pid) || products.get(d.pid);
+      if(!p){ if(delta>0) bad = d; return; }
+      var nq = round(p.qty-delta);
+      if(nq<0){ bad = d; return; }
+      upd.set(d.pid,Object.assign({},p,{qty:nq,sold:Math.max(0,round((p.sold||0)+delta)),revenue:Math.max(0,round((p.revenue||0)+delta*d.price))}));
+    });
+    if(bad){ toast('المتاح من '+bad.name+' مش كفاية',true); return; }
+    var total = draftTotal(), diff = round(total-s.total);
+    var ns = Object.assign({},s,{
+      lines:kept.map(function(d){ return {pid:d.pid,name:d.name,qty:d.qty,price:d.price,cost:d.cost}; }),
+      total:total,
+      edits:(s.edits||[]).concat([{ts:Date.now(),from:s.total,to:total}])
+    });
+    applySaleChange(ns,Array.from(upd.values()));
+    closeInvEdit();
+    toast(diff<0 ? 'اتعدّلت الفاتورة. ترجّع للعميل '+money(-diff) : diff>0 ? 'اتعدّلت الفاتورة. العميل يدفع فرق '+money(diff) : 'اتعدّلت الفاتورة');
+  }
+
+  function cancelInvoice(){
+    var s = findSale(editSale);
+    if(!s) return;
+    if(!pendingCancelInv){
+      pendingCancelInv = true; clearTimeout(cancelInvTimer);
+      cancelInvTimer = setTimeout(function(){ pendingCancelInv = false; renderInvEdit(); },3000);
+      renderInvEdit(); return;
+    }
+    clearTimeout(cancelInvTimer); pendingCancelInv = false;
+    if(!ready()) return;
+    var upd = [];
+    s.lines.forEach(function(l){
+      var p = products.get(l.pid);
+      if(p) upd.push(Object.assign({},p,{qty:round(p.qty+l.qty),sold:Math.max(0,round((p.sold||0)-l.qty)),revenue:Math.max(0,round((p.revenue||0)-l.qty*l.price))}));
+    });
+    applySaleChange(null,upd,s.id);
+    var t = s.total;
+    closeInvEdit();
+    toast('اتلغت الفاتورة. ترجّع للعميل '+money(t));
   }
 
   /* ---------- الموردين ---------- */
@@ -643,7 +764,10 @@ setTimeout(function(){
         var lines = s.lines.filter(function(l){ return l && l.pid; }).map(function(l){
           return {pid:String(l.pid),name:String(l.name||''),qty:num(l.qty,0),price:num(l.price,0),cost:((l.cost==null||!isFinite(+l.cost))?null:+l.cost)};
         });
-        ss.push({id:String(s.id||uid()),ts:+s.ts,lines:lines,total:num(s.total,0)});
+        var eds = (Array.isArray(s.edits)?s.edits:[]).filter(function(x){ return x && isFinite(+x.ts); }).map(function(x){ return {ts:+x.ts,from:num(x.from,0),to:num(x.to,0)}; });
+        var one = {id:String(s.id||uid()),ts:+s.ts,lines:lines,total:num(s.total,0)};
+        if(eds.length) one.edits = eds;
+        ss.push(one);
       }
     });
     ss.sort(function(a,b){ return b.ts-a.ts; });
@@ -754,6 +878,39 @@ setTimeout(function(){
         toast('اتلغت الحركة'+note);
         break;
       }
+      case 'editinv': openInvEdit(btn.dataset.sid); break;
+      case 'ie-close': closeInvEdit(); break;
+      case 'ie-save': saveInvEdit(); break;
+      case 'ie-cancel': cancelInvoice(); break;
+      case 'ie-dec': {
+        var d1 = draft[+btn.dataset.i]; if(!d1) return;
+        d1.qty = Math.max(0,round(d1.qty-1)); renderInvEdit(); break;
+      }
+      case 'ie-inc': {
+        var d2 = draft[+btn.dataset.i]; if(!d2) return;
+        var mx = maxFor(d2), nx = round(Math.min(d2.qty+1,mx));
+        if(nx===d2.qty){ toast('وصلت لآخر كمية متاحة من '+d2.name,true); return; }
+        d2.qty = nx; renderInvEdit(); break;
+      }
+      case 'ie-rm': {
+        var d3 = draft[+btn.dataset.i]; if(!d3) return;
+        d3.qty = 0; renderInvEdit(); break;
+      }
+      case 'ie-addbtn': {
+        var pv = $('#ie-add').value, pp = pv ? products.get(pv) : null;
+        if(!pp){ toast('اختار الصنف الأول',true); return; }
+        var ex = null; draft.forEach(function(d){ if(d.pid===pp.id) ex = d; });
+        if(ex){
+          var nq2 = round(Math.min(ex.qty+1,maxFor(ex)));
+          if(nq2===ex.qty){ toast('وصلت لآخر كمية متاحة من '+ex.name,true); return; }
+          ex.qty = nq2;
+        } else {
+          if(pp.qty<=0){ toast(pp.name+' خلص من المخزن',true); return; }
+          draft.push({pid:pp.id,name:pp.name,price:pp.price,cost:(pp.cost==null?null:pp.cost),qty:1,orig:0});
+        }
+        $('#ie-add').value = '';
+        renderInvEdit(); break;
+      }
       case 'seed': seedExamples(); break;
       case 'focusform': $('#f-name').focus(); break;
     }
@@ -772,6 +929,18 @@ setTimeout(function(){
     else if(v>p.qty){ cart[id]=p.qty; toast('المتاح من '+p.name+' '+fmt(p.qty)+' بس',true); }
     else cart[id]=round(v);
     renderSell();
+  });
+
+  $('#ie-lines').addEventListener('change',function(e){
+    var inp = e.target.closest('[data-iqty]');
+    if(!inp) return;
+    var d = draft[+inp.dataset.iqty], v = parseFloat(inp.value);
+    if(!d) return;
+    var mx = maxFor(d);
+    if(!(v>0)) d.qty = 0;
+    else if(v>mx){ d.qty = mx; toast('المتاح من '+d.name+' '+fmt(mx)+' بس',true); }
+    else d.qty = round(v);
+    renderInvEdit();
   });
 
   $('#pform').addEventListener('submit',function(e){
