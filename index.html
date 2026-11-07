@@ -143,6 +143,25 @@ setTimeout(function(){
           <div id="sd-tiles" class="tiles"></div>
         </div>
 
+        <div class="panel inv-edit" id="ent-edit" hidden>
+          <div class="sd-head">
+            <h2 id="ee-title">تعديل حركة</h2>
+            <button class="btn ghost sm" type="button" data-act="ee-close">إغلاق</button>
+          </div>
+          <p class="hint" id="ee-hint"></p>
+          <div class="pform">
+            <div id="ee-f-qty"><label for="ee-qty">الكمية</label><input id="ee-qty" type="number" inputmode="decimal" min="0" step="any"></div>
+            <div id="ee-f-cost"><label for="ee-cost">سعر الوحدة</label><input id="ee-cost" type="number" inputmode="decimal" min="0" step="any"></div>
+            <div id="ee-f-paid"><label for="ee-paid">اللي دفعته وقتها</label><input id="ee-paid" type="number" inputmode="decimal" min="0" step="any"></div>
+            <div id="ee-f-amount"><label for="ee-amount">المبلغ</label><input id="ee-amount" type="number" inputmode="decimal" min="0" step="any"></div>
+            <div id="ee-f-note" class="wide"><label for="ee-note">ملاحظة</label><input id="ee-note" type="text"></div>
+          </div>
+          <p class="sum-line" id="ee-sum"></p>
+          <div class="row-actions">
+            <button class="btn primary" type="button" data-act="ee-save">احفظ التعديل</button>
+          </div>
+        </div>
+
         <div class="panel">
           <h2>بضاعة جديدة من المورد</h2>
           <form id="pu-form" class="pform" autocomplete="off">
@@ -175,6 +194,32 @@ setTimeout(function(){
             <p class="sum-line" id="pu-total">إجمالي البضاعة: 0 ج.م</p>
             <div class="actions">
               <button class="btn primary" type="submit">سجّل البضاعة وزوّد المخزن</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>مرتجع للمورد</h2>
+          <form id="rt-form" class="pform" autocomplete="off">
+            <div class="wide">
+              <label for="rt-prod">الصنف اللي راجع للمورد</label>
+              <select id="rt-prod"></select>
+            </div>
+            <div>
+              <label for="rt-qty">الكمية المرتجعة</label>
+              <input id="rt-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+            </div>
+            <div>
+              <label for="rt-cost">سعر الوحدة (اللي اشتريت بيه)</label>
+              <input id="rt-cost" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+            </div>
+            <div class="wide">
+              <label for="rt-note">ملاحظة (اختياري)</label>
+              <input id="rt-note" type="text" placeholder="مثلا: تالف / غلط في الصنف">
+            </div>
+            <p class="sum-line" id="rt-total">قيمة المرتجع: 0 ج.م</p>
+            <div class="actions">
+              <button class="btn primary" type="submit">سجّل المرتجع وانقّص المخزن</button>
             </div>
           </form>
         </div>
@@ -304,6 +349,7 @@ setTimeout(function(){
   var locked = !!LICENSE_KEY_JWK;
   var lic = null;
   var editSale = null, draft = [], pendingCancelInv = false, cancelInvTimer = null, lastIeOpts = '';
+  var editEnt = null, lastRtOpts = '';
 
   /* ---------- حفظ ---------- */
   var LS_KEY = 'makhzani-v1';
@@ -607,15 +653,15 @@ setTimeout(function(){
     closeInvEdit();
     toast('اتلغت الفاتورة. ترجّع للعميل '+money(t));
   }
-
   /* ---------- الموردين ---------- */
   function supStats(s){
-    var bought = 0, paid = 0;
+    var bought = 0, paid = 0, ret = 0;
     (s.entries||[]).forEach(function(e){
       if(e.type==='purchase'){ bought += e.total; paid += (e.paid||0); }
+      else if(e.type==='return'){ ret += e.total; }
       else paid += e.amount;
     });
-    return {bought:round(bought),paid:round(paid),bal:round(bought-paid)};
+    return {bought:round(bought),paid:round(paid),ret:round(ret),bal:round(bought-paid-ret)};
   }
   function balLabel(bal){
     if(bal>0) return ['له عندي '+money(bal),'warn'];
@@ -651,6 +697,7 @@ setTimeout(function(){
     $('#sd-tiles').innerHTML =
       '<div class="tile"><span>إجمالي البضاعة منه</span><strong>'+money(st.bought)+'</strong></div>'+
       '<div class="tile"><span>اللي دفعته</span><strong>'+money(st.paid)+'</strong></div>'+
+      (st.ret>0?'<div class="tile"><span>مرتجعات رجّعتها له</span><strong>'+money(st.ret)+'</strong></div>':'')+
       '<div class="tile"><span>'+(st.bal<0?'ليا عنده':'الباقي له عندي')+'</span><strong>'+money(Math.abs(st.bal))+'</strong></div>';
 
     var opts = '<option value="">اختار الصنف…</option>'+
@@ -663,17 +710,33 @@ setTimeout(function(){
       lastOpts = opts;
     }
     $('#pu-new').hidden = ($('#pu-prod').value!=='__new');
+    var ropts = '<option value="">اختار الصنف…</option>'+
+      Array.from(products.values()).sort(byName).map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.name)+' (فاضل '+fmt(p.qty)+')</option>'; }).join('');
+    if(ropts!==lastRtOpts){
+      var rsel = $('#rt-prod'), rcur = rsel.value;
+      rsel.innerHTML = ropts;
+      if(rcur) rsel.value = rcur;
+      lastRtOpts = ropts;
+    }
+    renderEntEdit(s);
 
     var entries = s.entries||[];
     $('#sd-ledger').innerHTML = entries.length ? entries.map(function(e){
       var del = pendingEntry===e.id;
-      var btn = '<button type="button" class="btn danger sm" data-act="delentry" data-eid="'+esc(e.id)+'">'+(del?'متأكد؟ اضغط تاني':'إلغاء')+'</button>';
+      var btn = '<div class="lg-btns"><button type="button" class="btn sm" data-act="editent" data-eid="'+esc(e.id)+'">تعديل</button>'+
+        '<button type="button" class="btn danger sm" data-act="delentry" data-eid="'+esc(e.id)+'">'+(del?'متأكد؟ اضغط تاني':'إلغاء')+'</button></div>';
+      var tag = e.edited ? ' <span class="pill warn">اتعدّلت</span>' : '';
       if(e.type==='purchase'){
-        return '<li class="ledger-row"><div class="lg-main"><strong>بضاعة: '+esc(e.name)+' × '+fmt(e.qty)+'</strong>'+
+        return '<li class="ledger-row"><div class="lg-main"><strong>بضاعة: '+esc(e.name)+' × '+fmt(e.qty)+tag+'</strong>'+
           '<span class="pmeta">سعر الوحدة '+money(e.cost)+' = '+money(e.total)+' · دفعت '+money(e.paid)+'</span>'+
           '<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
       }
-      return '<li class="ledger-row"><div class="lg-main"><strong>دفعة '+money(e.amount)+'</strong>'+
+      if(e.type==='return'){
+        return '<li class="ledger-row"><div class="lg-main"><strong>مرتجع: '+esc(e.name)+' × '+fmt(e.qty)+tag+'</strong>'+
+          '<span class="pmeta">سعر الوحدة '+money(e.cost)+' = '+money(e.total)+' · اتخصم من حسابك</span>'+
+          (e.note?'<span class="pmeta">'+esc(e.note)+'</span>':'')+'<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
+      }
+      return '<li class="ledger-row"><div class="lg-main"><strong>دفعة '+money(e.amount)+tag+'</strong>'+
         (e.note?'<span class="pmeta">'+esc(e.note)+'</span>':'')+'<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
     }).join('') : '<li class="note">مفيش حركات لسه.</li>';
   }
@@ -681,6 +744,93 @@ setTimeout(function(){
   function updatePuTotal(){
     var q = parseFloat($('#pu-qty').value), c = parseFloat($('#pu-cost').value);
     $('#pu-total').textContent = 'إجمالي البضاعة: '+money((q>0&&c>=0)?q*c:0);
+  }
+
+  /* ---------- مرتجعات الموردين وتعديل الحركات ---------- */
+  function findEntry(s,eid){ var a = s.entries||[]; for(var i=0;i<a.length;i++){ if(a[i].id===eid) return a[i]; } return null; }
+  function setEeFields(type){
+    $('#ee-f-qty').hidden = (type==='payment');
+    $('#ee-f-cost').hidden = (type==='payment');
+    $('#ee-f-paid').hidden = (type!=='purchase');
+    $('#ee-f-amount').hidden = (type!=='payment');
+    $('#ee-f-note').hidden = (type==='purchase');
+  }
+  function openEntEdit(eid){
+    var s = selSup ? suppliers.get(selSup) : null;
+    var e = s ? findEntry(s,eid) : null;
+    if(!e) return;
+    editEnt = eid; pendingEntry = null;
+    setEeFields(e.type);
+    $('#ee-qty').value = (e.qty==null?'':e.qty);
+    $('#ee-cost').value = (e.cost==null?'':e.cost);
+    $('#ee-paid').value = (e.paid==null?'':e.paid);
+    $('#ee-amount').value = (e.amount==null?'':e.amount);
+    $('#ee-note').value = e.note||'';
+    renderSup(); updateEeSum();
+    var el = $('#ent-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
+  }
+  function closeEntEdit(){ editEnt = null; renderSup(); }
+  function renderEntEdit(s){
+    var e = (editEnt && s) ? findEntry(s,editEnt) : null;
+    if(editEnt && !e) editEnt = null;
+    $('#ent-edit').hidden = !e;
+    if(!e) return;
+    setEeFields(e.type);
+    $('#ee-title').textContent = e.type==='purchase' ? 'تعديل بضاعة: '+e.name : e.type==='return' ? 'تعديل مرتجع: '+e.name : 'تعديل دفعة';
+    $('#ee-hint').textContent = e.type==='purchase' ? 'تغيير الكمية بيزوّد أو ينقّص المخزن بالفرق. لو اتباع من الكمية دي مش هينفع تنقّصها لأقل من اللي اتباع.'
+      : e.type==='return' ? 'تغيير الكمية المرتجعة بيعدّل المخزن بالفرق.' : 'عدّل المبلغ أو الملاحظة.';
+  }
+  function updateEeSum(){
+    var s = selSup ? suppliers.get(selSup) : null, e = (s && editEnt) ? findEntry(s,editEnt) : null;
+    if(!e) return;
+    var q = parseFloat($('#ee-qty').value), c = parseFloat($('#ee-cost').value);
+    if(e.type==='payment') { $('#ee-sum').textContent = ''; return; }
+    var t = (q>0&&c>=0) ? round(q*c) : 0;
+    $('#ee-sum').textContent = (e.type==='purchase' ? 'إجمالي البضاعة: ' : 'قيمة المرتجع: ')+money(t)+' (كان '+money(e.total)+')';
+  }
+  function saveEntEdit(){
+    if(!ready()) return;
+    var s = selSup ? suppliers.get(selSup) : null, e = (s && editEnt) ? findEntry(s,editEnt) : null;
+    if(!e) return;
+    var upd = [], ne;
+    if(e.type==='payment'){
+      var amt = parseFloat($('#ee-amount').value);
+      if(!(amt>0)){ toast('اكتب المبلغ',true); return; }
+      ne = Object.assign({},e,{amount:round(amt),note:$('#ee-note').value.trim(),edited:true});
+    } else {
+      var qty = parseFloat($('#ee-qty').value), cost = parseFloat($('#ee-cost').value);
+      if(!(qty>0)){ toast('اكتب الكمية',true); $('#ee-qty').focus(); return; }
+      if(!(cost>=0)){ toast('اكتب سعر الوحدة',true); $('#ee-cost').focus(); return; }
+      var delta = round(qty-e.qty), pr = products.get(e.pid);
+      if(e.type==='purchase'){
+        var paidRaw = $('#ee-paid').value, paid = paidRaw==='' ? 0 : parseFloat(paidRaw);
+        if(!(paid>=0)){ toast('المبلغ المدفوع غلط',true); return; }
+        if(pr){
+          var nq = round(pr.qty+delta);
+          if(nq<0){ toast('مينفعش. اتباع من الصنف ده، فاضل '+fmt(pr.qty)+' بس والتنقيص أكبر.',true); return; }
+          var latest = null; (s.entries||[]).forEach(function(x){ if(!latest && x.type==='purchase' && x.pid===e.pid) latest = x; });
+          var np = Object.assign({},pr,{qty:nq});
+          if(latest && latest.id===e.id) np.cost = round(cost);
+          upd.push(np);
+        }
+        ne = Object.assign({},e,{qty:round(qty),cost:round(cost),total:round(qty*cost),paid:round(paid),edited:true});
+      } else {
+        if(pr){
+          var nq2 = round(pr.qty-delta);
+          if(nq2<0){ toast('الفاضل من '+pr.name+' '+fmt(pr.qty)+' بس. مينفعش ترجّع أكتر.',true); return; }
+          upd.push(Object.assign({},pr,{qty:nq2}));
+        } else if(delta>0){ toast('الصنف ده اتمسح من المخزن، مينفعش تزوّد المرتجع.',true); return; }
+        ne = Object.assign({},e,{qty:round(qty),cost:round(cost),total:round(qty*cost),note:$('#ee-note').value.trim(),edited:true});
+      }
+    }
+    commit(upd,Object.assign({},s,{entries:s.entries.map(function(x){ return x.id===e.id ? ne : x; })}));
+    editEnt = null; renderSup();
+    toast('اتعدّلت الحركة');
+  }
+
+  function updateRtTotal(){
+    var q = parseFloat($('#rt-qty').value), c = parseFloat($('#rt-cost').value);
+    $('#rt-total').textContent = 'قيمة المرتجع: '+money((q>0&&c>=0)?q*c:0);
   }
 
   /* ---------- البيع ---------- */
@@ -774,9 +924,15 @@ setTimeout(function(){
     var sp = [];
     (Array.isArray(d.suppliers)?d.suppliers:[]).forEach(function(s){
       if(s && s.id && typeof s.name==='string' && s.name){
-        var en = (Array.isArray(s.entries)?s.entries:[]).filter(function(e){ return e && e.id && (e.type==='purchase'||e.type==='payment'); }).map(function(e){
-          if(e.type==='purchase') return {id:String(e.id),type:'purchase',ts:num(e.ts,0),pid:String(e.pid||''),name:String(e.name||''),qty:num(e.qty,0),cost:num(e.cost,0),total:num(e.total,0),paid:num(e.paid,0)};
-          return {id:String(e.id),type:'payment',ts:num(e.ts,0),amount:num(e.amount,0),note:String(e.note||'')};
+        var en = (Array.isArray(s.entries)?s.entries:[]).filter(function(e){ return e && e.id && (e.type==='purchase'||e.type==='payment'||e.type==='return'); }).map(function(e){
+          var o;
+          if(e.type==='payment') o = {id:String(e.id),type:'payment',ts:num(e.ts,0),amount:num(e.amount,0),note:String(e.note||'')};
+          else {
+            o = {id:String(e.id),type:e.type,ts:num(e.ts,0),pid:String(e.pid||''),name:String(e.name||''),qty:num(e.qty,0),cost:num(e.cost,0),total:num(e.total,0)};
+            if(e.type==='purchase') o.paid = num(e.paid,0); else o.note = String(e.note||'');
+          }
+          if(e.edited) o.edited = true;
+          return o;
         });
         sp.push({id:String(s.id),name:s.name,phone:String(s.phone||''),entries:en,created:num(s.created,Date.now())});
       }
@@ -837,8 +993,8 @@ setTimeout(function(){
         }
         break;
       }
-      case 'opensup': selSup = id; pendingEntry = null; pendingSup = null; renderSup(); break;
-      case 'supback': selSup = null; pendingEntry = null; pendingSup = null; renderSup(); break;
+      case 'opensup': selSup = id; pendingEntry = null; pendingSup = null; editEnt = null; renderSup(); break;
+      case 'supback': selSup = null; pendingEntry = null; pendingSup = null; editEnt = null; renderSup(); break;
       case 'delsup': {
         var sp = selSup ? suppliers.get(selSup) : null;
         if(!sp) return;
@@ -866,6 +1022,10 @@ setTimeout(function(){
         var en = (sv.entries||[]).filter(function(x){ return x.id===eid; })[0];
         if(!en) return;
         var upd = [], note = '';
+        if(en.type==='return'){
+          var pr0 = products.get(en.pid);
+          if(pr0) upd.push(Object.assign({},pr0,{qty:round(pr0.qty+en.qty)}));
+        }
         if(en.type==='purchase'){
           var pr = products.get(en.pid);
           if(pr){
@@ -874,10 +1034,14 @@ setTimeout(function(){
             upd.push(Object.assign({},pr,{qty:nq}));
           }
         }
+        if(editEnt===eid) editEnt = null;
         commit(upd,Object.assign({},sv,{entries:sv.entries.filter(function(x){ return x.id!==eid; })}));
         toast('اتلغت الحركة'+note);
         break;
       }
+      case 'editent': openEntEdit(btn.dataset.eid); break;
+      case 'ee-close': closeEntEdit(); break;
+      case 'ee-save': saveEntEdit(); break;
       case 'editinv': openInvEdit(btn.dataset.sid); break;
       case 'ie-close': closeInvEdit(); break;
       case 'ie-save': saveInvEdit(); break;
@@ -1026,6 +1190,39 @@ setTimeout(function(){
     $('#pu-form').reset();
     updatePuTotal(); renderSup();
     toast('اتسجلت البضاعة وزادت في المخزن');
+  });
+
+  $('#ee-qty').addEventListener('input',updateEeSum);
+  $('#ee-cost').addEventListener('input',updateEeSum);
+
+  $('#rt-prod').addEventListener('change',function(){
+    var p = products.get($('#rt-prod').value), s = suppliers.get(selSup);
+    if(!p) return;
+    var last = null;
+    ((s && s.entries) || []).forEach(function(x){ if(!last && x.type==='purchase' && x.pid===p.id) last = x; });
+    var c = last ? last.cost : p.cost;
+    $('#rt-cost').value = (c==null ? '' : c);
+    updateRtTotal();
+  });
+  $('#rt-qty').addEventListener('input',updateRtTotal);
+  $('#rt-cost').addEventListener('input',updateRtTotal);
+
+  $('#rt-form').addEventListener('submit',function(e){
+    e.preventDefault();
+    if(!ready()) return;
+    var s = suppliers.get(selSup);
+    if(!s) return;
+    var p = products.get($('#rt-prod').value);
+    var qty = parseFloat($('#rt-qty').value), cost = parseFloat($('#rt-cost').value);
+    if(!p){ toast('اختار الصنف',true); $('#rt-prod').focus(); return; }
+    if(!(qty>0)){ toast('اكتب الكمية المرتجعة',true); $('#rt-qty').focus(); return; }
+    if(!(cost>=0)){ toast('اكتب سعر الوحدة',true); $('#rt-cost').focus(); return; }
+    if(qty>p.qty){ toast('الفاضل من '+p.name+' '+fmt(p.qty)+' بس. مينفعش ترجّع أكتر منه.',true); return; }
+    var entry = {id:uid(),type:'return',ts:Date.now(),pid:p.id,name:p.name,qty:round(qty),cost:round(cost),total:round(qty*cost),note:$('#rt-note').value.trim()};
+    commit([Object.assign({},p,{qty:round(p.qty-qty)})],Object.assign({},s,{entries:[entry].concat(s.entries||[])}));
+    $('#rt-form').reset();
+    updateRtTotal(); renderSup();
+    toast('اتسجّل المرتجع. اتخصم '+money(entry.total)+' من حسابك');
   });
 
   $('#pay-form').addEventListener('submit',function(e){
