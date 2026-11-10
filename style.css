@@ -59,7 +59,7 @@ h2{font-family:var(--font-display);font-size:18px;line-height:1.3;margin:0 0 10p
 .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
 .chip.db::before{background:var(--accent)}
 .chip.local::before{background:#C58A12}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface2);padding:4px;border-radius:12px}
+.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:var(--surface2);padding:4px;border-radius:12px}
 .tab{border:0;background:transparent;padding:10px 6px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
 .tab[aria-selected="true"]{background:var(--surface);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
@@ -205,3 +205,37 @@ html.locked #app{display:none}
 
 /* مرتجعات الموردين */
 .lg-btns{display:flex;gap:6px;flex:none}
+
+/* الباركود والطباعة */
+.last-sale{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:9px;background:var(--ok-bg);color:var(--ok-ink);font-size:14px}
+.receipt{display:none}
+@media print{
+  html.printing body{padding:0;background:#fff;color:#000}
+  html.printing body::before,html.printing #app,html.printing #toast,html.printing #lock{display:none!important}
+  html.printing .receipt{display:block;margin:0 auto;padding:3mm 0;background:#fff;color:#000;font-family:Tahoma,'Segoe UI',Arial,sans-serif;font-size:12px;line-height:1.45}
+  .receipt .rc-shop{text-align:center;font-weight:700;font-size:16px;margin-bottom:2px}
+  .receipt .rc-meta{text-align:center;font-size:11px;margin-bottom:6px}
+  .receipt table{width:100%;min-width:0;border-collapse:collapse}
+  .receipt th{font-size:11px;color:#000;border-bottom:1px dashed #000;padding:2px 1px;text-align:center}
+  .receipt td{padding:3px 1px;border-bottom:0;text-align:center;font-size:12px}
+  .receipt th.rn,.receipt td.rn{text-align:start;width:40%;overflow-wrap:anywhere}
+  .receipt .rc-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed #000;margin-top:4px;padding-top:4px;font-size:14px}
+  .receipt .rc-total strong{font-size:17px}
+  .receipt .rc-foot{text-align:center;margin-top:8px;font-size:11px}
+}
+
+/* الأمان */
+html.authing #app{display:none}
+.brand-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.chip.who{font-weight:600;color:var(--ink)}
+.chip.who::before{display:none}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:30;padding:16px}
+.modal .panel{width:100%;max-width:400px}
+#mine,#closer{margin-top:14px}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin:8px 0}
+.chk input{width:20px;height:20px;min-height:0;flex:none}
+.tile.alert{border-color:var(--bad-ink);background:var(--bad-bg)}
+.tile.alert span,.tile.alert small{color:var(--bad-ink)}
+.recent li.aud.sens .what{font-weight:600}
+#cnt-body input{width:84px;min-height:36px;padding:4px;text-align:center}
+@media (max-width:420px){.tab{font-size:13px;padding:10px 2px}}

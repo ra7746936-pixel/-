@@ -9,8 +9,9 @@
 <script>
 /* ===== إعدادات الترخيص: للنسخة اللي بتبعتها للعملاء بس ===== */
 var LICENSE_PUBLIC_KEY = '';
-var CONTACT_TEXT = 'للتفعيل أو التجديد كلّم: 01xxxxxxxxx';
+var CONTACT_TEXT = 'للتفعيل أو التجديد كلّم: 01098';
 if(LICENSE_PUBLIC_KEY){ document.documentElement.className += ' locked'; }
+document.documentElement.className += ' authing';
 </script>
 <script>
 window.onerror=function(m){ window.__err=m; };
@@ -20,7 +21,7 @@ setTimeout(function(){
     var d=document.createElement('div');
     d.style.cssText='background:#8F2A1F;color:#fff;padding:12px;margin:8px;border-radius:8px;font-size:14px';
     var v=(navigator.userAgent.match(/Chrome\/(\d+)/)||[])[1];
-    d.textContent='البرنامج مش شغال. تأكد إن الكود اتنسخ كله، وابعت الشريط ده لـ Claude. '+(window.__err?'(الخطأ: '+window.__err+') ':'')+'(Chrome '+(v||'مش معروف')+')';
+    d.textContent='البرنامج مش شغال. تأكد إن كل الملفات (index.html و style.css و fb.js و app1.js و app2.js و app3.js و cloud.js و app4.js) في نفس الفولدر واتنسخوا كاملين، وابعت الشريط ده لـ Claude. '+(window.__err?'(الخطأ: '+window.__err+') ':'')+'(Chrome '+(v||'مش معروف')+')';
     document.body.insertBefore(d,document.body.firstChild);
   }
 },4000);
@@ -31,24 +32,44 @@ setTimeout(function(){
   <header class="top">
     <div class="brand">
       <h1>مخزني</h1>
-      <span id="sync" class="chip">بيحمّل…</span>
+      <div class="brand-r"><span id="who" class="chip who"></span><button id="lock-now" class="btn ghost sm" type="button" data-act="logout" hidden>قفل</button><span id="sync" class="chip">بيحمّل…</span></div>
     </div>
     <nav class="tabs" role="tablist" aria-label="الشاشات">
       <button class="tab" role="tab" data-tab="sell" id="t-sell">البيع</button>
       <button class="tab" role="tab" data-tab="stock" id="t-stock">المخزن</button>
       <button class="tab" role="tab" data-tab="sup" id="t-sup">الموردين</button>
       <button class="tab" role="tab" data-tab="report" id="t-report">التقرير</button>
+      <button class="tab" role="tab" data-tab="sec" id="t-sec" hidden>الأمان</button>
     </nav>
     <p id="lic-note" class="lic-note" hidden></p>
   </header>
 
   <main>
+      <div class="panel inv-edit" id="inv-edit" hidden>
+        <div class="sd-head">
+          <h2 id="ie-title">تعديل فاتورة</h2>
+          <button class="btn ghost sm" type="button" data-act="ie-close">إغلاق</button>
+        </div>
+        <p class="hint" id="ie-hint"></p>
+        <ul id="ie-lines" class="clist"></ul>
+        <div class="ie-add">
+          <select id="ie-add" aria-label="صنف يتضاف للفاتورة"></select>
+          <button class="btn" type="button" data-act="ie-addbtn">+ ضيف للفاتورة</button>
+        </div>
+        <div class="total"><span>إجمالي الفاتورة بعد التعديل</span><strong id="ie-total">0 ج.م</strong></div>
+        <p class="sum-line" id="ie-diff"></p>
+        <div class="row-actions">
+          <button class="btn primary" type="button" data-act="ie-save">احفظ التعديل</button>
+          <button class="btn danger" type="button" id="ie-cancel" data-act="ie-cancel">إلغاء الفاتورة كلها (مرتجع كامل)</button>
+        </div>
+      </div>
+
     <section id="v-sell" aria-labelledby="t-sell">
       <div class="sell-grid">
         <div class="panel">
           <h2>الأصناف</h2>
           <label class="sr" for="q">دوّر على صنف</label>
-          <input id="q" type="search" placeholder="دوّر على صنف…" autocomplete="off">
+          <input id="q" type="search" placeholder="دوّر بالاسم أو امسح الباركود…" autocomplete="off">
           <ul id="plist" class="plist"></ul>
         </div>
         <div class="panel cart">
@@ -56,6 +77,21 @@ setTimeout(function(){
           <ul id="cart" class="clist"></ul>
           <div class="total"><span>الإجمالي</span><strong id="total">0 ج.م</strong></div>
           <button id="checkout" class="btn primary big" type="button">تأكيد البيع</button>
+          <div id="last-sale" class="last-sale" hidden><span id="ls-txt"></span><button type="button" class="btn sm" data-act="print" data-sid="">اطبع الفاتورة</button></div>
+        </div>
+      </div>
+      <div class="panel" id="mine">
+        <h2>آخر فواتير النهارده</h2>
+        <ul id="mine-list" class="recent"></ul>
+      </div>
+      <div class="panel" id="closer">
+        <h2>قفل الدرج / نهاية الوردية</h2>
+        <p class="hint">عُد الفلوس اللي في الدرج واكتب المبلغ. البرنامج بيسجّله ويقارنه بالمبيعات، والمالك هو اللي بيشوف الفرق.</p>
+        <div class="pform">
+          <div><label for="cl-open">رصيد أول الوردية (اختياري)</label><input id="cl-open" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></div>
+          <div><label for="cl-amount">الفلوس اللي في الدرج دلوقتي</label><input id="cl-amount" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></div>
+          <div class="wide"><label for="cl-note">ملاحظة (اختياري)</label><input id="cl-note" type="text"></div>
+          <div class="actions"><button class="btn primary" type="button" data-act="cl-save">سجّل قفل الدرج</button></div>
         </div>
       </div>
     </section>
@@ -80,6 +116,10 @@ setTimeout(function(){
             <label for="f-qty" id="f-qty-label">الكمية</label>
             <input id="f-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
           </div>
+          <div>
+            <label for="f-barcode">باركود (اختياري)</label>
+            <input id="f-barcode" type="text" inputmode="numeric" autocomplete="off" placeholder="امسحه بالقارئ">
+          </div>
           <div class="actions">
             <button class="btn primary" id="f-submit" type="submit">إضافة للمخزن</button>
             <button class="btn ghost" id="f-cancel" type="button" hidden>إلغاء</button>
@@ -90,14 +130,25 @@ setTimeout(function(){
         <h2>الأصناف اللي في المخزن</h2>
         <ul id="slist" class="slist"></ul>
       </div>
+      <div class="panel" id="print-set">
+        <h2>بيانات الفاتورة المطبوعة</h2>
+        <div class="pform">
+          <div class="wide"><label for="ps-name">اسم المحل</label><input id="ps-name" type="text" placeholder="مثلا: سوبر ماركت النور"></div>
+          <div class="wide"><label for="ps-foot">سطر في آخر الفاتورة</label><input id="ps-foot" type="text" placeholder="شكرا لزيارتكم"></div>
+          <div><label for="ps-w">عرض الورق</label><select id="ps-w"><option value="80">80 مم</option><option value="58">58 مم</option></select></div>
+        </div>
+        <p class="hint">بتتحفظ لوحدها أول ما تغيّر أي خانة.</p>
+      </div>
       <div class="panel" id="backup" hidden>
         <h2>نسخة احتياطية</h2>
         <p class="hint" id="b-last">لسه ماعملتش نسخة احتياطية.</p>
         <div class="row-actions">
-          <button class="btn primary" id="b-export" type="button">حمّل نسخة احتياطية</button>
+          <button class="btn primary" id="b-xlsx" type="button">حمّل نسخة Excel</button>
+          <button class="btn" id="b-export" type="button">حمّل ملف الاسترجاع</button>
           <button class="btn" id="b-import" type="button">استرجع من ملف</button>
-          <input id="b-file" type="file" accept="application/json,.json" hidden>
+          <input id="b-file" type="file" accept=".makhzani,.json,application/json" hidden>
         </div>
+        <p class="hint">«نسخة Excel» بتفتحها بـ Excel وتقراها وتطبعها، بس مش بترجع للبرنامج. «ملف الاسترجاع» هو اللي بيرجّع كل بياناتك لو الجهاز اتبدل. احتفظ بالاتنين.</p>
         <div id="b-confirm" class="b-confirm" hidden>
           <p id="b-msg"></p>
           <div class="row-actions">
@@ -247,30 +298,12 @@ setTimeout(function(){
         </div>
 
         <div class="panel">
-          <button class="btn danger" id="sd-del" type="button" data-act="delsup">حذف المورد</button>
+          <div class="row-actions"><button class="btn" type="button" data-act="exp-sup">تصدير حساب المورد لـ Excel</button><button class="btn danger" id="sd-del" type="button" data-act="delsup">حذف المورد</button></div>
         </div>
       </div>
     </section>
 
     <section id="v-report" aria-labelledby="t-report" hidden>
-      <div class="panel inv-edit" id="inv-edit" hidden>
-        <div class="sd-head">
-          <h2 id="ie-title">تعديل فاتورة</h2>
-          <button class="btn ghost sm" type="button" data-act="ie-close">إغلاق</button>
-        </div>
-        <p class="hint" id="ie-hint"></p>
-        <ul id="ie-lines" class="clist"></ul>
-        <div class="ie-add">
-          <select id="ie-add" aria-label="صنف يتضاف للفاتورة"></select>
-          <button class="btn" type="button" data-act="ie-addbtn">+ ضيف للفاتورة</button>
-        </div>
-        <div class="total"><span>إجمالي الفاتورة بعد التعديل</span><strong id="ie-total">0 ج.م</strong></div>
-        <p class="sum-line" id="ie-diff"></p>
-        <div class="row-actions">
-          <button class="btn primary" type="button" data-act="ie-save">احفظ التعديل</button>
-          <button class="btn danger" type="button" id="ie-cancel" data-act="ie-cancel">إلغاء الفاتورة كلها (مرتجع كامل)</button>
-        </div>
-      </div>
       <div class="seg" role="group" aria-label="الفترة">
         <button type="button" data-period="today" aria-pressed="true">النهارده</button>
         <button type="button" data-period="all" aria-pressed="false">من الأول</button>
@@ -289,12 +322,115 @@ setTimeout(function(){
         <h2>آخر الفواتير</h2>
         <ul id="recent" class="recent"></ul>
       </div>
+      <div class="panel">
+        <h2>تصدير لـ Excel</h2>
+        <p class="hint">بيتصدّر حسب الفترة المختارة فوق (النهارده أو من الأول).</p>
+        <div class="row-actions">
+          <button class="btn" type="button" data-act="exp-items">تصدير الأصناف</button>
+          <button class="btn" type="button" data-act="exp-inv">تصدير الفواتير</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="v-sec" aria-labelledby="t-sec" hidden>
+      <div class="panel" id="cloud-info" hidden>
+        <h2>حساب المحل والاشتراك</h2>
+        <p class="hint" id="cd-info"></p>
+        <div class="row-actions"><button class="btn ghost" id="cd-logout2" type="button">تسجيل خروج من حساب المحل</button></div>
+      </div>
+      <div class="panel">
+        <h2>ملخص النهارده</h2>
+        <div id="sec-tiles" class="tiles"></div>
+        <div class="row-actions"><button class="btn primary" type="button" data-act="wa-send">ابعت الملخص على واتساب</button></div>
+      </div>
+
+      <div class="panel">
+        <h2>حسابات الكاشير</h2>
+        <ul id="sec-users" class="slist"></ul>
+        <form id="u-form" class="pform" autocomplete="off">
+          <div><label for="u-name">اسم الكاشير</label><input id="u-name" type="text" placeholder="مثلا: أحمد"></div>
+          <div><label for="u-pin">PIN (4 لـ 8 أرقام)</label><input id="u-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+          <div class="actions"><button class="btn primary" type="submit">ضيف كاشير أو غيّر PIN</button></div>
+        </form>
+        <p class="hint">لو كتبت اسم كاشير موجود، هيتغيّر الـ PIN بتاعه.</p>
+      </div>
+
+      <div class="panel">
+        <h2>PIN المالك</h2>
+        <form id="o-form" class="pform" autocomplete="off">
+          <div><label for="o-pin">PIN جديد</label><input id="o-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+          <div><label for="o-pin2">أكّد الـ PIN</label><input id="o-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+          <div class="actions"><button class="btn" type="submit">غيّر PIN المالك</button></div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h2>الصلاحيات والإعدادات</h2>
+        <label class="chk"><input id="sc-inv" type="checkbox"> الكاشير يحتاج PIN المالك عشان يلغي أو يعدّل فاتورة</label>
+        <label class="chk"><input id="sc-stock" type="checkbox"> الكاشير يحتاج PIN المالك عشان يعدّل أو يمسح صنف</label>
+        <div class="pform">
+          <div><label for="sc-auto">القفل التلقائي لو مفيش حركة</label>
+            <select id="sc-auto"><option value="0">متعطّل</option><option value="5">5 دقايق</option><option value="10">10 دقايق</option><option value="30">30 دقيقة</option></select></div>
+          <div><label for="sc-phone">رقم واتساب المالك (لإرسال الملخص)</label><input id="sc-phone" type="text" inputmode="tel" placeholder="2010xxxxxxxx"></div>
+        </div>
+        <p class="hint">الكاشير مابيشوفش الأرباح ولا سعر الجملة ولا الموردين ولا التقارير. وكل عملية حساسة بتتسجّل باسمه حتى لو مش محتاجة PIN.</p>
+      </div>
+
+      <div class="panel">
+        <h2>جرد المخزن</h2>
+        <p class="hint">عُد الأصناف على الرف واكتب الكمية الفعلية. اللي تسيبه فاضي مش هيتغيّر.</p>
+        <div class="row-actions"><button class="btn" type="button" data-act="cnt-open">ابدأ جرد</button></div>
+        <div id="cnt-box" hidden>
+          <div class="tbl-wrap"><table><thead><tr><th>الصنف</th><th class="n">في البرنامج</th><th class="n">الفعلي</th><th class="n">الفرق</th></tr></thead><tbody id="cnt-body"></tbody></table></div>
+          <div class="row-actions"><button class="btn danger" id="cnt-apply" type="button" data-act="cnt-apply">اعتمد الجرد وعدّل المخزن</button><button class="btn ghost" type="button" data-act="cnt-cancel">إلغاء</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>قفل الدرج</h2>
+        <ul id="sec-closes" class="recent"></ul>
+      </div>
+
+      <div class="panel">
+        <h2>سجل العمليات</h2>
+        <p class="hint">كل عملية متسجّلة بالوقت واسم اللي عملها، ومفيش زرار يمسح منه.</p>
+        <div class="pform">
+          <div class="wide"><label for="aud-filter">عرض</label>
+            <select id="aud-filter"><option value="all">كل العمليات</option><option value="sens">الحساسة بس</option><option value="inv">الفواتير</option><option value="stk">المخزن</option><option value="login">الدخول</option><option value="close">قفل الدرج</option></select></div>
+        </div>
+        <div class="row-actions"><button class="btn" type="button" data-act="aud-verify">تحقق إن السجل سليم</button><button class="btn" type="button" data-act="aud-export">تصدير السجل لـ Excel</button></div>
+        <p class="hint" id="aud-state"></p>
+        <ul id="aud-list" class="recent"></ul>
+        <div class="row-actions"><button class="btn ghost" id="aud-more" type="button" data-act="aud-more" hidden>اعرض أكتر</button></div>
+      </div>
     </section>
   </main>
 
 </div>
 
+<div id="receipt" class="receipt" dir="rtl"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<div id="cloud" class="lock" dir="rtl" hidden>
+  <div class="panel lock-card">
+    <h1>مخزني</h1>
+    <h2 id="cd-title">بيتصل…</h2>
+    <p class="hint" id="cd-msg"></p>
+    <div id="cd-form" hidden>
+      <label for="cd-email">إيميل المحل</label>
+      <input id="cd-email" type="email" autocomplete="username" dir="ltr">
+      <label for="cd-pass">الباسورد</label>
+      <input id="cd-pass" type="password" autocomplete="current-password" dir="ltr">
+      <br>
+      <button class="btn primary big" id="cd-go" type="button">دخول</button>
+      <button class="btn ghost" id="cd-forgot" type="button">نسيت الباسورد</button>
+    </div>
+    <p class="hint lock-err" id="cd-err"></p>
+    <button class="btn primary" id="cd-retry" type="button" hidden>تحقق تاني</button>
+    <button class="btn ghost" id="cd-out" type="button" hidden>خروج من الحساب</button>
+    <p class="hint" id="cd-contact"></p>
+  </div>
+</div>
 
 <div id="lock" class="lock" dir="rtl" hidden>
   <div class="panel lock-card">
@@ -319,1108 +455,50 @@ setTimeout(function(){
   </div>
 </div>
 
-<script>
-(function(){
-  document.documentElement.setAttribute('dir','rtl');
-  var $ = function(s){ return document.querySelector(s); };
-  var esc = function(s){ return String(s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
-  var fmt = function(n){ return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2}); };
-  var money = function(n){ return fmt(n)+' ج.م'; };
-  var round = function(n){ return Math.round(n*1000)/1000; };
-  var uid = function(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); };
-  var byName = function(a,b){ return a.name.localeCompare(b.name,'ar'); };
-  var LOW = 5;
+<div id="auth" class="lock" dir="rtl" hidden>
+  <div class="panel lock-card">
+    <h1>مخزني</h1>
+    <h2 id="au-title">تسجيل الدخول</h2>
+    <p class="hint" id="au-msg"></p>
+    <div id="au-user-wrap"><label for="au-user">الحساب</label><select id="au-user"></select></div>
+    <div id="au-pin-wrap"><label for="au-pin" id="au-pin-l">PIN</label><input id="au-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+    <div id="au-pin2-wrap" hidden><label for="au-pin2">أكّد الـ PIN</label><input id="au-pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="off"></div>
+    <div id="au-phone-wrap" hidden><label for="au-phone">رقم واتساب المالك (اختياري، عشان يوصله ملخص اليوم)</label><input id="au-phone" type="text" inputmode="tel" placeholder="2010xxxxxxxx"></div>
+    <div id="au-code-wrap" hidden>
+      <div id="au-lic-fields">
+        <label for="au-dev">رقم جهازك</label>
+        <input id="au-dev" type="text" readonly>
+        <label for="au-code">كود فك الـ PIN</label>
+        <textarea id="au-code" rows="4" placeholder="الصق الكود هنا"></textarea>
+      </div>
+      <div id="au-cloud-fields" hidden>
+        <label for="au-cpw">باسورد حساب المحل</label>
+        <input id="au-cpw" type="password" autocomplete="off" dir="ltr">
+      </div>
+    </div>
+    <button class="btn primary big" id="au-go" type="button">دخول</button>
+    <p class="hint lock-err" id="au-err"></p>
+    <button class="btn ghost" id="au-forgot" type="button" hidden>نسيت PIN المالك</button>
+    <button class="btn ghost" id="au-back" type="button" hidden>رجوع</button>
+  </div>
+</div>
 
-  var products = new Map();
-  var suppliers = new Map();
-  var selSup = null;
-  var pendingEntry = null, entryTimer = null, pendingSup = null, supTimer = null;
-  var lastOpts = '';
-  var sales = [];
-  var cart = {};
-  var view = 'sell';
-  var period = 'today';
-  var editingId = null;
-  var pendingDel = null, delTimer = null;
-  var mode = 'pending';
-  var db = null;
-  var LICENSE_KEY_JWK = window.LICENSE_PUBLIC_KEY || '';
-  var CONTACT = window.CONTACT_TEXT || '';
-  var locked = !!LICENSE_KEY_JWK;
-  var lic = null;
-  var editSale = null, draft = [], pendingCancelInv = false, cancelInvTimer = null, lastIeOpts = '';
-  var editEnt = null, lastRtOpts = '';
+<div id="approve" class="modal" hidden>
+  <div class="panel">
+    <h2>محتاج موافقة المالك</h2>
+    <p class="hint" id="ap-msg"></p>
+    <label for="ap-pin">PIN المالك</label>
+    <input id="ap-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+    <p class="hint lock-err" id="ap-err"></p>
+    <div class="row-actions"><button class="btn primary" id="ap-ok" type="button">موافق</button><button class="btn ghost" id="ap-no" type="button">إلغاء</button></div>
+  </div>
+</div>
 
-  /* ---------- حفظ ---------- */
-  var LS_KEY = 'makhzani-v1';
-  function lsLoad(){
-    try{
-      var raw = localStorage.getItem(LS_KEY);
-      if(raw){
-        var d = JSON.parse(raw);
-        (d.products||[]).forEach(function(p){ products.set(p.id,p); });
-        sales = d.sales||[];
-        (d.suppliers||[]).forEach(function(s){ suppliers.set(s.id,s); });
-      }
-    }catch(e){}
-  }
-  function lsSave(){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify({products:Array.from(products.values()),sales:sales,suppliers:Array.from(suppliers.values())})); }catch(e){}
-  }
-  var chain = Promise.resolve();
-  function enqueue(fn){
-    chain = chain.then(fn).catch(function(e){ toast('الحفظ ماتمش: '+((e&&e.message)||'جرب تاني'),true); });
-    return chain;
-  }
-  function persist(dbFn){
-    if(mode==='db') enqueue(dbFn); else lsSave();
-    render();
-  }
-  function ready(){
-    if(locked){ toast('التطبيق مقفول. فعّله الأول.',true); return false; }
-    if(mode==='pending'){ toast('استنى ثواني لحد ما البيانات تتحمّل',true); return false; }
-    return true;
-  }
-  function putProduct(p){
-    products.set(p.id,p);
-    persist(function(){ return db.doc('products/'+p.id).set(p); });
-  }
-  function removeProduct(id){
-    products.delete(id);
-    persist(function(){ return db.doc('products/'+id).delete(); });
-  }
-  function recordSale(sale,updated){
-    updated.forEach(function(p){ products.set(p.id,p); });
-    sales.unshift(sale);
-    persist(function(){
-      var ch = Promise.resolve();
-      updated.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
-      return ch.then(function(){ return db.doc('sales/'+sale.id).set(sale); });
-    });
-  }
-
-  function putSupplier(s){
-    suppliers.set(s.id,s);
-    persist(function(){ return db.doc('suppliers/'+s.id).set(s); });
-  }
-  function removeSupplier(id){
-    suppliers.delete(id);
-    persist(function(){ return db.doc('suppliers/'+id).delete(); });
-  }
-  function commit(prods,sup){
-    prods.forEach(function(p){ products.set(p.id,p); });
-    suppliers.set(sup.id,sup);
-    persist(function(){
-      var ch = Promise.resolve();
-      prods.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
-      return ch.then(function(){ return db.doc('suppliers/'+sup.id).set(sup); });
-    });
-  }
-
-  /* ---------- رسالة سريعة ---------- */
-  var tt;
-  function toast(msg,bad){
-    var el = $('#toast');
-    el.textContent = msg;
-    el.className = 'toast show'+(bad?' bad':'');
-    clearTimeout(tt);
-    tt = setTimeout(function(){ el.className='toast'; },2600);
-  }
-
-  /* ---------- رسم ---------- */
-  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); }
-
-  function renderStatus(){
-    var el = $('#sync');
-    if(mode==='db'){ el.textContent='محفوظ ومتزامن'; el.className='chip db'; }
-    else if(mode==='local'){ el.textContent='محفوظ على الجهاز ده بس'; el.className='chip local'; }
-    else { el.textContent='بيحمّل…'; el.className='chip'; }
-  }
-
-  function renderTabs(){
-    ['sell','stock','sup','report'].forEach(function(v){
-      $('#v-'+v).hidden = (v!==view);
-      $('#t-'+v).setAttribute('aria-selected', v===view ? 'true':'false');
-    });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-period]'),function(b){
-      b.setAttribute('aria-pressed', b.dataset.period===period ? 'true':'false');
-    });
-  }
-
-  function cleanCart(){
-    Object.keys(cart).forEach(function(id){
-      var p = products.get(id);
-      if(!p || p.qty<=0){ delete cart[id]; return; }
-      if(cart[id]>p.qty) cart[id]=p.qty;
-      if(!(cart[id]>0)) delete cart[id];
-    });
-  }
-
-  function renderSell(){
-    var q = ($('#q').value||'').trim().toLowerCase();
-    var list = Array.from(products.values()).filter(function(p){ return !q || p.name.toLowerCase().indexOf(q)>=0; }).sort(byName);
-    $('#plist').innerHTML = list.length ? list.map(function(p){
-      return '<li><button type="button" class="prow" data-act="add" data-id="'+esc(p.id)+'"'+(p.qty<=0?' disabled':'')+'>'+
-        '<span class="pname">'+esc(p.name)+'</span>'+
-        '<span class="pmeta">'+money(p.price)+' · '+(p.qty<=0?'خلص':'فاضل '+fmt(p.qty))+'</span>'+
-        '<span class="padd" aria-hidden="true">+</span></button></li>';
-    }).join('') : '<li class="note">'+(products.size ? 'مفيش صنف بالاسم ده.' : 'لسه مفيش أصناف. افتح «المخزن» وضيف أول صنف.')+'</li>';
-
-    cleanCart();
-    var ids = Object.keys(cart), total = 0;
-    $('#cart').innerHTML = ids.length ? ids.map(function(id){
-      var p = products.get(id), q2 = cart[id], sub = q2*p.price; total += sub;
-      return '<li class="cline"><div class="cl-name">'+esc(p.name)+'<small>'+fmt(p.price)+' × '+fmt(q2)+' = '+money(sub)+'</small></div>'+
-        '<div class="step"><button type="button" data-act="dec" data-id="'+esc(id)+'" aria-label="نقّص">−</button>'+
-        '<input type="number" inputmode="decimal" min="0" step="any" value="'+q2+'" data-qty="'+esc(id)+'" aria-label="الكمية">'+
-        '<button type="button" data-act="inc" data-id="'+esc(id)+'" aria-label="زوّد">+</button></div>'+
-        '<button type="button" class="rm" data-act="rm" data-id="'+esc(id)+'" aria-label="شيل من الفاتورة">×</button></li>';
-    }).join('') : '<li class="note">اضغط على الأصناف اللي عايز تبيعها.</li>';
-    $('#total').textContent = money(total);
-    $('#checkout').disabled = !ids.length;
-  }
-
-  function statusOf(p){
-    if(p.qty<=0) return '<span class="pill bad">خلص</span>';
-    if(p.qty<=LOW) return '<span class="pill warn">قرب يخلص</span>';
-    return '<span class="pill ok">متوفر</span>';
-  }
-
-  function renderStock(){
-    var list = Array.from(products.values()).sort(byName);
-    var box = $('#slist');
-    if(!list.length){
-      box.innerHTML = '<li class="empty"><p>لسه مفيش أصناف في المخزن.</p><div class="row">'+
-        '<button type="button" class="btn primary" data-act="focusform">ضيف أول صنف</button>'+
-        '<button type="button" class="btn" data-act="seed">جرّب بأصناف تجريبية</button></div></li>';
-      return;
-    }
-    box.innerHTML = list.map(function(p){
-      var del = pendingDel===p.id;
-      return '<li class="item"><div class="item-head"><strong>'+esc(p.name)+'</strong>'+statusOf(p)+'</div>'+(p.cost!=null?'<div class="pmeta">سعر الجملة: '+money(p.cost)+'</div>':'')+
-        '<dl class="stats"><div><dt>السعر</dt><dd>'+money(p.price)+'</dd></div>'+
-        '<div><dt>اتباع</dt><dd>'+fmt(p.sold)+'</dd></div>'+
-        '<div><dt>فاضل</dt><dd>'+fmt(p.qty)+'</dd></div></dl>'+
-        '<div class="item-actions">'+
-        '<form class="restock" data-id="'+esc(p.id)+'"><input name="n" type="number" inputmode="decimal" min="0" step="any" placeholder="كمية جديدة" aria-label="كمية التوريد لـ '+esc(p.name)+'"><button class="btn" type="submit">+ توريد</button></form>'+
-        '<button type="button" class="btn" data-act="edit" data-id="'+esc(p.id)+'">تعديل</button>'+
-        '<button type="button" class="btn danger" data-act="del" data-id="'+esc(p.id)+'">'+(del?'متأكد؟ اضغط تاني':'حذف')+'</button>'+
-        '</div></li>';
-    }).join('');
-  }
-
-  function periodRows(){
-    var t0 = new Date(); t0.setHours(0,0,0,0); t0 = t0.getTime();
-    var rows = new Map(), invoices = 0;
-    if(period==='today'){
-      sales.filter(function(s){ return s.ts>=t0; }).forEach(function(s){
-        invoices++;
-        s.lines.forEach(function(l){
-          var r = rows.get(l.pid) || {name:l.name,sold:0,rev:0};
-          r.sold += l.qty; r.rev += l.qty*l.price; rows.set(l.pid,r);
-        });
-      });
-    } else {
-      products.forEach(function(p){ rows.set(p.id,{name:p.name,sold:p.sold||0,rev:p.revenue||0}); });
-    }
-    products.forEach(function(p){ if(!rows.has(p.id)) rows.set(p.id,{name:p.name,sold:0,rev:0}); });
-    var out = [];
-    rows.forEach(function(r,pid){ var p = products.get(pid); out.push({name:r.name,sold:r.sold,rev:r.rev,left:p?p.qty:null}); });
-    out.sort(function(a,b){ return (b.sold-a.sold) || a.name.localeCompare(b.name,'ar'); });
-    return {rows:out,invoices:invoices,t0:t0};
-  }
-
-  function renderReport(){
-    var r = periodRows();
-    var rev = 0, pcs = 0, stockVal = 0;
-    r.rows.forEach(function(x){ rev += x.rev; pcs += x.sold; });
-    products.forEach(function(p){ stockVal += p.qty*p.price; });
-    var owed = 0;
-    suppliers.forEach(function(s){ var b = supStats(s).bal; if(b>0) owed += b; });
-    $('#tiles').innerHTML =
-      '<div class="tile"><span>مبيعات '+(period==='today'?'النهارده':'من الأول')+'</span><strong>'+money(rev)+'</strong>'+(period==='today'?'<small>'+fmt(r.invoices)+' فاتورة</small>':'')+'</div>'+
-      '<div class="tile"><span>قطع اتباعت</span><strong>'+fmt(pcs)+'</strong></div>'+
-      '<div class="tile"><span>قيمة اللي فاضل في المخزن</span><strong>'+money(stockVal)+'</strong></div>'+
-      '<div class="tile"><span>مستحق للموردين</span><strong>'+money(owed)+'</strong></div>';
-    $('#rtable').innerHTML = r.rows.length ? r.rows.map(function(x){
-      return '<tr><td>'+esc(x.name)+'</td><td class="n">'+fmt(x.sold)+'</td><td class="n">'+(x.left===null?'—':fmt(x.left))+'</td><td class="n">'+money(x.rev)+'</td></tr>';
-    }).join('') : '<tr><td colspan="4" class="note">مفيش أصناف لسه.</td></tr>';
-    var recent = sales.filter(function(s){ return period==='all' || s.ts>=r.t0; }).slice(0,15);
-    $('#recent').innerHTML = recent.length ? recent.map(function(s){
-      var when = new Date(s.ts).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
-      var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
-      return '<li><span class="when">'+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
-        '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button>'+tag+'</div></li>';
-    }).join('') : '<li class="note">مفيش فواتير في الفترة دي.</li>';
-  }
-
-  /* ---------- مرتجعات وتعديل الفواتير ---------- */
-  function findSale(id){ for(var i=0;i<sales.length;i++){ if(sales[i].id===id) return sales[i]; } return null; }
-  function maxFor(d){ var p = products.get(d.pid); return round(d.orig + (p ? p.qty : 0)); }
-  function draftTotal(){ var t = 0; draft.forEach(function(d){ t += d.qty*d.price; }); return round(t); }
-
-  function openInvEdit(sid){
-    var s = findSale(sid);
-    if(!s) return;
-    editSale = sid; pendingCancelInv = false;
-    draft = s.lines.map(function(l){ return {pid:l.pid,name:l.name,price:l.price,cost:(l.cost==null?null:l.cost),qty:l.qty,orig:l.qty}; });
-    render();
-    var el = $('#inv-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
-  }
-  function closeInvEdit(){ editSale = null; draft = []; pendingCancelInv = false; clearTimeout(cancelInvTimer); render(); }
-
-  function renderInvEdit(){
-    var box = $('#inv-edit'), s = editSale ? findSale(editSale) : null;
-    if(editSale && !s){ editSale = null; draft = []; }
-    box.hidden = !s;
-    if(!s) return;
-    $('#ie-title').textContent = 'تعديل فاتورة '+dt(s.ts);
-    $('#ie-hint').textContent = 'الفاتورة الأصلية '+money(s.total)+'. نقّص الكمية = مرتجع بيرجع للمخزن. زوّد أو ضيف صنف = بيتخصم من المخزن.';
-    $('#ie-lines').innerHTML = draft.map(function(d,i){
-      var note = d.qty===0 ? 'هيتشال من الفاتورة ويرجع للمخزن' : (d.orig>0 ? 'كان '+fmt(d.orig)+' · ' : 'صنف جديد · ')+fmt(d.price)+' × '+fmt(d.qty)+' = '+money(d.qty*d.price);
-      return '<li class="cline"><div class="cl-name">'+esc(d.name)+'<small>'+note+'</small></div>'+
-        '<div class="step"><button type="button" data-act="ie-dec" data-i="'+i+'" aria-label="نقّص">−</button>'+
-        '<input type="number" inputmode="decimal" min="0" step="any" value="'+d.qty+'" data-iqty="'+i+'" aria-label="الكمية">'+
-        '<button type="button" data-act="ie-inc" data-i="'+i+'" aria-label="زوّد">+</button></div>'+
-        '<button type="button" class="rm" data-act="ie-rm" data-i="'+i+'" aria-label="شيل الصنف">×</button></li>';
-    }).join('');
-    var opts = '<option value="">ضيف صنف تاني…</option>'+Array.from(products.values()).sort(byName).map(function(p){
-      return '<option value="'+esc(p.id)+'">'+esc(p.name)+' (فاضل '+fmt(p.qty)+')</option>';
-    }).join('');
-    if(opts!==lastIeOpts){ var sel = $('#ie-add'), cur = sel.value; sel.innerHTML = opts; if(cur) sel.value = cur; lastIeOpts = opts; }
-    var tot = draftTotal(), diff = round(tot - s.total);
-    $('#ie-total').textContent = money(tot);
-    $('#ie-diff').textContent = diff<0 ? 'ترجّع للعميل '+money(-diff) : diff>0 ? 'العميل يدفع فرق '+money(diff) : 'مفيش فرق في المبلغ';
-    $('#ie-cancel').textContent = pendingCancelInv ? 'متأكد؟ اضغط تاني' : 'إلغاء الفاتورة كلها (مرتجع كامل)';
-  }
-
-  function applySaleChange(ns,prods,delId){
-    prods.forEach(function(p){ products.set(p.id,p); });
-    if(ns) sales = sales.map(function(x){ return x.id===ns.id ? ns : x; });
-    else sales = sales.filter(function(x){ return x.id!==delId; });
-    persist(function(){
-      var ch = Promise.resolve();
-      prods.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
-      return ch.then(function(){ return ns ? db.doc('sales/'+ns.id).set(ns) : db.doc('sales/'+delId).delete(); });
-    });
-  }
-
-  function saveInvEdit(){
-    if(!ready()) return;
-    var s = findSale(editSale);
-    if(!s) return;
-    var kept = draft.filter(function(d){ return d.qty>0; });
-    if(!kept.length){ toast('مفيش أصناف في الفاتورة. لو عايز تلغيها كلها اضغط «إلغاء الفاتورة».',true); return; }
-    var upd = new Map(), bad = null;
-    draft.forEach(function(d){
-      var delta = round(d.qty-d.orig);
-      if(!delta) return;
-      var p = upd.get(d.pid) || products.get(d.pid);
-      if(!p){ if(delta>0) bad = d; return; }
-      var nq = round(p.qty-delta);
-      if(nq<0){ bad = d; return; }
-      upd.set(d.pid,Object.assign({},p,{qty:nq,sold:Math.max(0,round((p.sold||0)+delta)),revenue:Math.max(0,round((p.revenue||0)+delta*d.price))}));
-    });
-    if(bad){ toast('المتاح من '+bad.name+' مش كفاية',true); return; }
-    var total = draftTotal(), diff = round(total-s.total);
-    var ns = Object.assign({},s,{
-      lines:kept.map(function(d){ return {pid:d.pid,name:d.name,qty:d.qty,price:d.price,cost:d.cost}; }),
-      total:total,
-      edits:(s.edits||[]).concat([{ts:Date.now(),from:s.total,to:total}])
-    });
-    applySaleChange(ns,Array.from(upd.values()));
-    closeInvEdit();
-    toast(diff<0 ? 'اتعدّلت الفاتورة. ترجّع للعميل '+money(-diff) : diff>0 ? 'اتعدّلت الفاتورة. العميل يدفع فرق '+money(diff) : 'اتعدّلت الفاتورة');
-  }
-
-  function cancelInvoice(){
-    var s = findSale(editSale);
-    if(!s) return;
-    if(!pendingCancelInv){
-      pendingCancelInv = true; clearTimeout(cancelInvTimer);
-      cancelInvTimer = setTimeout(function(){ pendingCancelInv = false; renderInvEdit(); },3000);
-      renderInvEdit(); return;
-    }
-    clearTimeout(cancelInvTimer); pendingCancelInv = false;
-    if(!ready()) return;
-    var upd = [];
-    s.lines.forEach(function(l){
-      var p = products.get(l.pid);
-      if(p) upd.push(Object.assign({},p,{qty:round(p.qty+l.qty),sold:Math.max(0,round((p.sold||0)-l.qty)),revenue:Math.max(0,round((p.revenue||0)-l.qty*l.price))}));
-    });
-    applySaleChange(null,upd,s.id);
-    var t = s.total;
-    closeInvEdit();
-    toast('اتلغت الفاتورة. ترجّع للعميل '+money(t));
-  }
-  /* ---------- الموردين ---------- */
-  function supStats(s){
-    var bought = 0, paid = 0, ret = 0;
-    (s.entries||[]).forEach(function(e){
-      if(e.type==='purchase'){ bought += e.total; paid += (e.paid||0); }
-      else if(e.type==='return'){ ret += e.total; }
-      else paid += e.amount;
-    });
-    return {bought:round(bought),paid:round(paid),ret:round(ret),bal:round(bought-paid-ret)};
-  }
-  function balLabel(bal){
-    if(bal>0) return ['له عندي '+money(bal),'warn'];
-    if(bal<0) return ['ليا عنده '+money(-bal),'ok'];
-    return ['متسوّي','zero'];
-  }
-  function dt(ts){
-    var d = new Date(ts), z = function(n){ n = String(n); return n.length<2 ? '0'+n : n; };
-    return z(d.getDate())+'/'+z(d.getMonth()+1)+'/'+d.getFullYear()+' '+z(d.getHours())+':'+z(d.getMinutes());
-  }
-
-  function renderSup(){
-    var s = selSup ? suppliers.get(selSup) : null;
-    if(selSup && !s) selSup = null;
-    $('#sup-list-view').hidden = !!s;
-    $('#sup-detail').hidden = !s;
-
-    var list = Array.from(suppliers.values()).sort(byName);
-    $('#suplist').innerHTML = list.length ? list.map(function(x){
-      var b = balLabel(supStats(x).bal);
-      return '<li class="item"><button type="button" class="sup-row" data-act="opensup" data-id="'+esc(x.id)+'">'+
-        '<span class="sup-main"><strong>'+esc(x.name)+'</strong>'+(x.phone?'<span class="pmeta">'+esc(x.phone)+'</span>':'')+'</span>'+
-        '<span class="pill '+b[1]+'">'+b[0]+'</span></button></li>';
-    }).join('') : '<li class="note">لسه ماسجلتش موردين. ضيف أول مورد من فوق.</li>';
-    if(!s) return;
-
-    var st = supStats(s), b = balLabel(st.bal);
-    $('#sd-name').textContent = s.name;
-    $('#sd-phone').textContent = s.phone ? 'تليفون: '+s.phone : '';
-    $('#sd-pill').textContent = b[0];
-    $('#sd-pill').className = 'pill '+b[1];
-    $('#sd-del').textContent = pendingSup===s.id ? 'متأكد؟ اضغط تاني' : 'حذف المورد';
-    $('#sd-tiles').innerHTML =
-      '<div class="tile"><span>إجمالي البضاعة منه</span><strong>'+money(st.bought)+'</strong></div>'+
-      '<div class="tile"><span>اللي دفعته</span><strong>'+money(st.paid)+'</strong></div>'+
-      (st.ret>0?'<div class="tile"><span>مرتجعات رجّعتها له</span><strong>'+money(st.ret)+'</strong></div>':'')+
-      '<div class="tile"><span>'+(st.bal<0?'ليا عنده':'الباقي له عندي')+'</span><strong>'+money(Math.abs(st.bal))+'</strong></div>';
-
-    var opts = '<option value="">اختار الصنف…</option>'+
-      Array.from(products.values()).sort(byName).map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>'; }).join('')+
-      '<option value="__new">+ صنف جديد</option>';
-    if(opts!==lastOpts){
-      var sel = $('#pu-prod'), cur = sel.value;
-      sel.innerHTML = opts;
-      if(cur) sel.value = cur;
-      lastOpts = opts;
-    }
-    $('#pu-new').hidden = ($('#pu-prod').value!=='__new');
-    var ropts = '<option value="">اختار الصنف…</option>'+
-      Array.from(products.values()).sort(byName).map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.name)+' (فاضل '+fmt(p.qty)+')</option>'; }).join('');
-    if(ropts!==lastRtOpts){
-      var rsel = $('#rt-prod'), rcur = rsel.value;
-      rsel.innerHTML = ropts;
-      if(rcur) rsel.value = rcur;
-      lastRtOpts = ropts;
-    }
-    renderEntEdit(s);
-
-    var entries = s.entries||[];
-    $('#sd-ledger').innerHTML = entries.length ? entries.map(function(e){
-      var del = pendingEntry===e.id;
-      var btn = '<div class="lg-btns"><button type="button" class="btn sm" data-act="editent" data-eid="'+esc(e.id)+'">تعديل</button>'+
-        '<button type="button" class="btn danger sm" data-act="delentry" data-eid="'+esc(e.id)+'">'+(del?'متأكد؟ اضغط تاني':'إلغاء')+'</button></div>';
-      var tag = e.edited ? ' <span class="pill warn">اتعدّلت</span>' : '';
-      if(e.type==='purchase'){
-        return '<li class="ledger-row"><div class="lg-main"><strong>بضاعة: '+esc(e.name)+' × '+fmt(e.qty)+tag+'</strong>'+
-          '<span class="pmeta">سعر الوحدة '+money(e.cost)+' = '+money(e.total)+' · دفعت '+money(e.paid)+'</span>'+
-          '<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
-      }
-      if(e.type==='return'){
-        return '<li class="ledger-row"><div class="lg-main"><strong>مرتجع: '+esc(e.name)+' × '+fmt(e.qty)+tag+'</strong>'+
-          '<span class="pmeta">سعر الوحدة '+money(e.cost)+' = '+money(e.total)+' · اتخصم من حسابك</span>'+
-          (e.note?'<span class="pmeta">'+esc(e.note)+'</span>':'')+'<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
-      }
-      return '<li class="ledger-row"><div class="lg-main"><strong>دفعة '+money(e.amount)+tag+'</strong>'+
-        (e.note?'<span class="pmeta">'+esc(e.note)+'</span>':'')+'<span class="when">'+dt(e.ts)+'</span></div>'+btn+'</li>';
-    }).join('') : '<li class="note">مفيش حركات لسه.</li>';
-  }
-
-  function updatePuTotal(){
-    var q = parseFloat($('#pu-qty').value), c = parseFloat($('#pu-cost').value);
-    $('#pu-total').textContent = 'إجمالي البضاعة: '+money((q>0&&c>=0)?q*c:0);
-  }
-
-  /* ---------- مرتجعات الموردين وتعديل الحركات ---------- */
-  function findEntry(s,eid){ var a = s.entries||[]; for(var i=0;i<a.length;i++){ if(a[i].id===eid) return a[i]; } return null; }
-  function setEeFields(type){
-    $('#ee-f-qty').hidden = (type==='payment');
-    $('#ee-f-cost').hidden = (type==='payment');
-    $('#ee-f-paid').hidden = (type!=='purchase');
-    $('#ee-f-amount').hidden = (type!=='payment');
-    $('#ee-f-note').hidden = (type==='purchase');
-  }
-  function openEntEdit(eid){
-    var s = selSup ? suppliers.get(selSup) : null;
-    var e = s ? findEntry(s,eid) : null;
-    if(!e) return;
-    editEnt = eid; pendingEntry = null;
-    setEeFields(e.type);
-    $('#ee-qty').value = (e.qty==null?'':e.qty);
-    $('#ee-cost').value = (e.cost==null?'':e.cost);
-    $('#ee-paid').value = (e.paid==null?'':e.paid);
-    $('#ee-amount').value = (e.amount==null?'':e.amount);
-    $('#ee-note').value = e.note||'';
-    renderSup(); updateEeSum();
-    var el = $('#ent-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
-  }
-  function closeEntEdit(){ editEnt = null; renderSup(); }
-  function renderEntEdit(s){
-    var e = (editEnt && s) ? findEntry(s,editEnt) : null;
-    if(editEnt && !e) editEnt = null;
-    $('#ent-edit').hidden = !e;
-    if(!e) return;
-    setEeFields(e.type);
-    $('#ee-title').textContent = e.type==='purchase' ? 'تعديل بضاعة: '+e.name : e.type==='return' ? 'تعديل مرتجع: '+e.name : 'تعديل دفعة';
-    $('#ee-hint').textContent = e.type==='purchase' ? 'تغيير الكمية بيزوّد أو ينقّص المخزن بالفرق. لو اتباع من الكمية دي مش هينفع تنقّصها لأقل من اللي اتباع.'
-      : e.type==='return' ? 'تغيير الكمية المرتجعة بيعدّل المخزن بالفرق.' : 'عدّل المبلغ أو الملاحظة.';
-  }
-  function updateEeSum(){
-    var s = selSup ? suppliers.get(selSup) : null, e = (s && editEnt) ? findEntry(s,editEnt) : null;
-    if(!e) return;
-    var q = parseFloat($('#ee-qty').value), c = parseFloat($('#ee-cost').value);
-    if(e.type==='payment') { $('#ee-sum').textContent = ''; return; }
-    var t = (q>0&&c>=0) ? round(q*c) : 0;
-    $('#ee-sum').textContent = (e.type==='purchase' ? 'إجمالي البضاعة: ' : 'قيمة المرتجع: ')+money(t)+' (كان '+money(e.total)+')';
-  }
-  function saveEntEdit(){
-    if(!ready()) return;
-    var s = selSup ? suppliers.get(selSup) : null, e = (s && editEnt) ? findEntry(s,editEnt) : null;
-    if(!e) return;
-    var upd = [], ne;
-    if(e.type==='payment'){
-      var amt = parseFloat($('#ee-amount').value);
-      if(!(amt>0)){ toast('اكتب المبلغ',true); return; }
-      ne = Object.assign({},e,{amount:round(amt),note:$('#ee-note').value.trim(),edited:true});
-    } else {
-      var qty = parseFloat($('#ee-qty').value), cost = parseFloat($('#ee-cost').value);
-      if(!(qty>0)){ toast('اكتب الكمية',true); $('#ee-qty').focus(); return; }
-      if(!(cost>=0)){ toast('اكتب سعر الوحدة',true); $('#ee-cost').focus(); return; }
-      var delta = round(qty-e.qty), pr = products.get(e.pid);
-      if(e.type==='purchase'){
-        var paidRaw = $('#ee-paid').value, paid = paidRaw==='' ? 0 : parseFloat(paidRaw);
-        if(!(paid>=0)){ toast('المبلغ المدفوع غلط',true); return; }
-        if(pr){
-          var nq = round(pr.qty+delta);
-          if(nq<0){ toast('مينفعش. اتباع من الصنف ده، فاضل '+fmt(pr.qty)+' بس والتنقيص أكبر.',true); return; }
-          var latest = null; (s.entries||[]).forEach(function(x){ if(!latest && x.type==='purchase' && x.pid===e.pid) latest = x; });
-          var np = Object.assign({},pr,{qty:nq});
-          if(latest && latest.id===e.id) np.cost = round(cost);
-          upd.push(np);
-        }
-        ne = Object.assign({},e,{qty:round(qty),cost:round(cost),total:round(qty*cost),paid:round(paid),edited:true});
-      } else {
-        if(pr){
-          var nq2 = round(pr.qty-delta);
-          if(nq2<0){ toast('الفاضل من '+pr.name+' '+fmt(pr.qty)+' بس. مينفعش ترجّع أكتر.',true); return; }
-          upd.push(Object.assign({},pr,{qty:nq2}));
-        } else if(delta>0){ toast('الصنف ده اتمسح من المخزن، مينفعش تزوّد المرتجع.',true); return; }
-        ne = Object.assign({},e,{qty:round(qty),cost:round(cost),total:round(qty*cost),note:$('#ee-note').value.trim(),edited:true});
-      }
-    }
-    commit(upd,Object.assign({},s,{entries:s.entries.map(function(x){ return x.id===e.id ? ne : x; })}));
-    editEnt = null; renderSup();
-    toast('اتعدّلت الحركة');
-  }
-
-  function updateRtTotal(){
-    var q = parseFloat($('#rt-qty').value), c = parseFloat($('#rt-cost').value);
-    $('#rt-total').textContent = 'قيمة المرتجع: '+money((q>0&&c>=0)?q*c:0);
-  }
-
-  /* ---------- البيع ---------- */
-  function confirmSale(){
-    if(!ready()) return;
-    var lines = [], updated = [], total = 0, bad = null;
-    Object.keys(cart).forEach(function(pid){
-      var p = products.get(pid), q = cart[pid];
-      if(!p || !(q>0)) return;
-      if(q>p.qty){ bad = p; return; }
-      lines.push({pid:pid,name:p.name,qty:q,price:p.price,cost:(p.cost==null?null:p.cost)});
-      total += q*p.price;
-      updated.push(Object.assign({},p,{qty:round(p.qty-q),sold:round((p.sold||0)+q),revenue:round((p.revenue||0)+q*p.price)}));
-    });
-    if(bad){ toast('المتاح من '+bad.name+' '+fmt(bad.qty)+' بس',true); return; }
-    if(!lines.length) return;
-    var sale = {id:uid(),ts:Date.now(),lines:lines,total:round(total)};
-    cart = {};
-    recordSale(sale,updated);
-    toast('تم البيع: '+money(total));
-  }
-
-  /* ---------- المخزن ---------- */
-  function resetForm(){
-    $('#pform').reset();
-    editingId = null;
-    $('#f-title').textContent = 'إضافة صنف';
-    $('#f-submit').textContent = 'إضافة للمخزن';
-    $('#f-qty-label').textContent = 'الكمية';
-    $('#f-cancel').hidden = true;
-  }
-
-  function seedExamples(){
-    if(!ready()) return;
-    [['أرز 1 كجم',38,40],['سكر 1 كجم',32,30],['زيت 1 لتر',85,24],['شاي 100 جم',28,3],['مكرونة 400 جم',12,60]].forEach(function(x){
-      putProduct({id:uid(),name:x[0],price:x[1],qty:x[2],cost:null,sold:0,revenue:0,created:Date.now()});
-    });
-    toast('اتضافت 5 أصناف تجريبية. تقدر تمسحها من هنا.');
-  }
-
-  /* ---------- نسخة احتياطية ---------- */
-  var BK_KEY = 'makhzani-lastbackup';
-  var pendingRestore = null;
-  var pad2 = function(n){ n = String(n); return n.length<2 ? '0'+n : n; };
-
-  function renderBackup(){
-    $('#backup').hidden = (mode!=='local');
-    var last = null;
-    try{ last = localStorage.getItem(BK_KEY); }catch(e){}
-    $('#b-last').textContent = last
-      ? 'آخر نسخة احتياطية: '+dt(+last)
-      : 'لسه ماعملتش نسخة احتياطية.';
-  }
-
-  function exportBackup(){
-    var data = {app:'makhzani',version:1,exportedAt:Date.now(),products:Array.from(products.values()),sales:sales,suppliers:Array.from(suppliers.values())};
-    var blob = new Blob([JSON.stringify(data)],{type:'application/json'});
-    var url = URL.createObjectURL(blob);
-    var d = new Date();
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'makhzani-backup-'+d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){ URL.revokeObjectURL(url); },1000);
-    try{ localStorage.setItem(BK_KEY,String(Date.now())); }catch(e){}
-    renderBackup();
-    toast('اتحمّلت النسخة الاحتياطية');
-  }
-
-  function cleanBackup(d){
-    if(!d || !Array.isArray(d.products) || !Array.isArray(d.sales)) return null;
-    var num = function(v,def){ v = +v; return isFinite(v) ? v : def; };
-    var ps = [], ss = [];
-    d.products.forEach(function(p){
-      if(p && p.id && typeof p.name==='string' && p.name){
-        ps.push({id:String(p.id),name:p.name,price:num(p.price,0),qty:num(p.qty,0),sold:num(p.sold,0),revenue:num(p.revenue,0),cost:((p.cost==null||!isFinite(+p.cost))?null:+p.cost),created:num(p.created,Date.now())});
-      }
-    });
-    d.sales.forEach(function(s){
-      if(s && isFinite(+s.ts) && Array.isArray(s.lines)){
-        var lines = s.lines.filter(function(l){ return l && l.pid; }).map(function(l){
-          return {pid:String(l.pid),name:String(l.name||''),qty:num(l.qty,0),price:num(l.price,0),cost:((l.cost==null||!isFinite(+l.cost))?null:+l.cost)};
-        });
-        var eds = (Array.isArray(s.edits)?s.edits:[]).filter(function(x){ return x && isFinite(+x.ts); }).map(function(x){ return {ts:+x.ts,from:num(x.from,0),to:num(x.to,0)}; });
-        var one = {id:String(s.id||uid()),ts:+s.ts,lines:lines,total:num(s.total,0)};
-        if(eds.length) one.edits = eds;
-        ss.push(one);
-      }
-    });
-    ss.sort(function(a,b){ return b.ts-a.ts; });
-    var sp = [];
-    (Array.isArray(d.suppliers)?d.suppliers:[]).forEach(function(s){
-      if(s && s.id && typeof s.name==='string' && s.name){
-        var en = (Array.isArray(s.entries)?s.entries:[]).filter(function(e){ return e && e.id && (e.type==='purchase'||e.type==='payment'||e.type==='return'); }).map(function(e){
-          var o;
-          if(e.type==='payment') o = {id:String(e.id),type:'payment',ts:num(e.ts,0),amount:num(e.amount,0),note:String(e.note||'')};
-          else {
-            o = {id:String(e.id),type:e.type,ts:num(e.ts,0),pid:String(e.pid||''),name:String(e.name||''),qty:num(e.qty,0),cost:num(e.cost,0),total:num(e.total,0)};
-            if(e.type==='purchase') o.paid = num(e.paid,0); else o.note = String(e.note||'');
-          }
-          if(e.edited) o.edited = true;
-          return o;
-        });
-        sp.push({id:String(s.id),name:s.name,phone:String(s.phone||''),entries:en,created:num(s.created,Date.now())});
-      }
-    });
-    return {products:ps,sales:ss,suppliers:sp};
-  }
-
-  /* ---------- أحداث ---------- */
-  document.addEventListener('click',function(e){
-    var tab = e.target.closest('[data-tab]');
-    if(tab){ view = tab.dataset.tab; render(); return; }
-    var per = e.target.closest('[data-period]');
-    if(per){ period = per.dataset.period; render(); return; }
-    var btn = e.target.closest('[data-act]');
-    if(!btn) return;
-    var id = btn.dataset.id, p = id ? products.get(id) : null;
-    switch(btn.dataset.act){
-      case 'add': {
-        if(!p || p.qty<=0) return;
-        var cur = cart[id]||0, next = round(Math.min(cur+1,p.qty));
-        if(next===cur){ toast('وصلت لآخر كمية متاحة من '+p.name,true); return; }
-        cart[id] = next; renderSell(); break;
-      }
-      case 'inc': {
-        if(!p) return;
-        var c2 = cart[id]||0, n2 = round(Math.min(c2+1,p.qty));
-        if(n2===c2){ toast('وصلت لآخر كمية متاحة من '+p.name,true); return; }
-        cart[id] = n2; renderSell(); break;
-      }
-      case 'dec': {
-        var c3 = round((cart[id]||0)-1);
-        if(c3>0) cart[id]=c3; else delete cart[id];
-        renderSell(); break;
-      }
-      case 'rm': delete cart[id]; renderSell(); break;
-      case 'edit': {
-        if(!p) return;
-        editingId = id;
-        $('#f-name').value = p.name; $('#f-price').value = p.price; $('#f-cost').value = (p.cost==null?'':p.cost); $('#f-qty').value = p.qty;
-        $('#f-title').textContent = 'تعديل الصنف';
-        $('#f-submit').textContent = 'حفظ التعديل';
-        $('#f-qty-label').textContent = 'الفاضل دلوقتي';
-        $('#f-cancel').hidden = false;
-        $('#pform').scrollIntoView({block:'center'});
-        $('#f-name').focus();
-        break;
-      }
-      case 'del': {
-        if(pendingDel===id){
-          clearTimeout(delTimer); pendingDel = null;
-          if(!ready()) return;
-          if(editingId===id) resetForm();
-          removeProduct(id); toast('اتمسح الصنف');
-        } else {
-          pendingDel = id; clearTimeout(delTimer);
-          delTimer = setTimeout(function(){ pendingDel=null; renderStock(); },3000);
-          renderStock();
-        }
-        break;
-      }
-      case 'opensup': selSup = id; pendingEntry = null; pendingSup = null; editEnt = null; renderSup(); break;
-      case 'supback': selSup = null; pendingEntry = null; pendingSup = null; editEnt = null; renderSup(); break;
-      case 'delsup': {
-        var sp = selSup ? suppliers.get(selSup) : null;
-        if(!sp) return;
-        if(pendingSup===sp.id){
-          clearTimeout(supTimer); pendingSup = null;
-          if(!ready()) return;
-          selSup = null; removeSupplier(sp.id); toast('اتمسح المورد');
-        } else {
-          pendingSup = sp.id; clearTimeout(supTimer);
-          supTimer = setTimeout(function(){ pendingSup=null; renderSup(); },3000);
-          renderSup();
-        }
-        break;
-      }
-      case 'delentry': {
-        var eid = btn.dataset.eid, sv = selSup ? suppliers.get(selSup) : null;
-        if(!sv) return;
-        if(pendingEntry!==eid){
-          pendingEntry = eid; clearTimeout(entryTimer);
-          entryTimer = setTimeout(function(){ pendingEntry=null; renderSup(); },3000);
-          renderSup(); return;
-        }
-        clearTimeout(entryTimer); pendingEntry = null;
-        if(!ready()) return;
-        var en = (sv.entries||[]).filter(function(x){ return x.id===eid; })[0];
-        if(!en) return;
-        var upd = [], note = '';
-        if(en.type==='return'){
-          var pr0 = products.get(en.pid);
-          if(pr0) upd.push(Object.assign({},pr0,{qty:round(pr0.qty+en.qty)}));
-        }
-        if(en.type==='purchase'){
-          var pr = products.get(en.pid);
-          if(pr){
-            var nq = round(pr.qty-en.qty);
-            if(nq<0){ nq = 0; note = ' (الكمية في المخزن كانت أقل، فاتخصمت للصفر)'; }
-            upd.push(Object.assign({},pr,{qty:nq}));
-          }
-        }
-        if(editEnt===eid) editEnt = null;
-        commit(upd,Object.assign({},sv,{entries:sv.entries.filter(function(x){ return x.id!==eid; })}));
-        toast('اتلغت الحركة'+note);
-        break;
-      }
-      case 'editent': openEntEdit(btn.dataset.eid); break;
-      case 'ee-close': closeEntEdit(); break;
-      case 'ee-save': saveEntEdit(); break;
-      case 'editinv': openInvEdit(btn.dataset.sid); break;
-      case 'ie-close': closeInvEdit(); break;
-      case 'ie-save': saveInvEdit(); break;
-      case 'ie-cancel': cancelInvoice(); break;
-      case 'ie-dec': {
-        var d1 = draft[+btn.dataset.i]; if(!d1) return;
-        d1.qty = Math.max(0,round(d1.qty-1)); renderInvEdit(); break;
-      }
-      case 'ie-inc': {
-        var d2 = draft[+btn.dataset.i]; if(!d2) return;
-        var mx = maxFor(d2), nx = round(Math.min(d2.qty+1,mx));
-        if(nx===d2.qty){ toast('وصلت لآخر كمية متاحة من '+d2.name,true); return; }
-        d2.qty = nx; renderInvEdit(); break;
-      }
-      case 'ie-rm': {
-        var d3 = draft[+btn.dataset.i]; if(!d3) return;
-        d3.qty = 0; renderInvEdit(); break;
-      }
-      case 'ie-addbtn': {
-        var pv = $('#ie-add').value, pp = pv ? products.get(pv) : null;
-        if(!pp){ toast('اختار الصنف الأول',true); return; }
-        var ex = null; draft.forEach(function(d){ if(d.pid===pp.id) ex = d; });
-        if(ex){
-          var nq2 = round(Math.min(ex.qty+1,maxFor(ex)));
-          if(nq2===ex.qty){ toast('وصلت لآخر كمية متاحة من '+ex.name,true); return; }
-          ex.qty = nq2;
-        } else {
-          if(pp.qty<=0){ toast(pp.name+' خلص من المخزن',true); return; }
-          draft.push({pid:pp.id,name:pp.name,price:pp.price,cost:(pp.cost==null?null:pp.cost),qty:1,orig:0});
-        }
-        $('#ie-add').value = '';
-        renderInvEdit(); break;
-      }
-      case 'seed': seedExamples(); break;
-      case 'focusform': $('#f-name').focus(); break;
-    }
-  });
-
-  $('#checkout').addEventListener('click',confirmSale);
-  $('#q').addEventListener('input',renderSell);
-  $('#f-cancel').addEventListener('click',resetForm);
-
-  $('#cart').addEventListener('change',function(e){
-    var inp = e.target.closest('[data-qty]');
-    if(!inp) return;
-    var id = inp.dataset.qty, p = products.get(id), v = parseFloat(inp.value);
-    if(!p) return;
-    if(!(v>0)){ delete cart[id]; }
-    else if(v>p.qty){ cart[id]=p.qty; toast('المتاح من '+p.name+' '+fmt(p.qty)+' بس',true); }
-    else cart[id]=round(v);
-    renderSell();
-  });
-
-  $('#ie-lines').addEventListener('change',function(e){
-    var inp = e.target.closest('[data-iqty]');
-    if(!inp) return;
-    var d = draft[+inp.dataset.iqty], v = parseFloat(inp.value);
-    if(!d) return;
-    var mx = maxFor(d);
-    if(!(v>0)) d.qty = 0;
-    else if(v>mx){ d.qty = mx; toast('المتاح من '+d.name+' '+fmt(mx)+' بس',true); }
-    else d.qty = round(v);
-    renderInvEdit();
-  });
-
-  $('#pform').addEventListener('submit',function(e){
-    e.preventDefault();
-    if(!ready()) return;
-    var name = $('#f-name').value.trim();
-    var price = parseFloat($('#f-price').value);
-    var qty = parseFloat($('#f-qty').value);
-    var costV = parseFloat($('#f-cost').value), cost = costV>=0 ? round(costV) : null;
-    if(!name){ toast('اكتب اسم الصنف',true); $('#f-name').focus(); return; }
-    if(!(price>=0)){ toast('اكتب سعر البيع',true); $('#f-price').focus(); return; }
-    if(!(qty>=0)){ toast('اكتب الكمية',true); $('#f-qty').focus(); return; }
-    var old = editingId ? products.get(editingId) : null;
-    if(old){
-      putProduct(Object.assign({},old,{name:name,price:round(price),cost:cost,qty:round(qty)}));
-      toast('اتعدّل: '+name);
-    } else {
-      putProduct({id:uid(),name:name,price:round(price),qty:round(qty),cost:cost,sold:0,revenue:0,created:Date.now()});
-      toast('اتضاف: '+name);
-    }
-    resetForm();
-    $('#f-name').focus();
-  });
-
-  $('#slist').addEventListener('submit',function(e){
-    var f = e.target.closest('form.restock');
-    if(!f) return;
-    e.preventDefault();
-    if(!ready()) return;
-    var p = products.get(f.dataset.id), n = parseFloat(f.elements.n.value);
-    if(!p || !(n>0)){ toast('اكتب كمية التوريد',true); return; }
-    putProduct(Object.assign({},p,{qty:round(p.qty+n)}));
-    toast('اتزوّد '+fmt(n)+' من '+p.name);
-  });
-
-  $('#sform').addEventListener('submit',function(e){
-    e.preventDefault();
-    if(!ready()) return;
-    var name = $('#s-name').value.trim();
-    if(!name){ toast('اكتب اسم المورد',true); $('#s-name').focus(); return; }
-    var dup = Array.from(suppliers.values()).some(function(x){ return x.name===name; });
-    if(dup){ toast('المورد ده متسجل قبل كده',true); return; }
-    var s = {id:uid(),name:name,phone:$('#s-phone').value.trim(),entries:[],created:Date.now()};
-    $('#sform').reset();
-    selSup = s.id; pendingEntry = null;
-    putSupplier(s);
-    toast('اتضاف المورد: '+name);
-  });
-
-  $('#pu-prod').addEventListener('change',function(){
-    var p = products.get($('#pu-prod').value);
-    if(p && p.cost!=null && !$('#pu-cost').value) $('#pu-cost').value = p.cost;
-    updatePuTotal(); renderSup();
-  });
-  $('#pu-qty').addEventListener('input',updatePuTotal);
-  $('#pu-cost').addEventListener('input',updatePuTotal);
-
-  $('#pu-form').addEventListener('submit',function(e){
-    e.preventDefault();
-    if(!ready()) return;
-    var s = suppliers.get(selSup);
-    if(!s) return;
-    var val = $('#pu-prod').value;
-    var qty = parseFloat($('#pu-qty').value), cost = parseFloat($('#pu-cost').value);
-    var paidRaw = $('#pu-paid').value, paid = paidRaw==='' ? 0 : parseFloat(paidRaw);
-    if(!val){ toast('اختار الصنف',true); $('#pu-prod').focus(); return; }
-    var base;
-    if(val==='__new'){
-      var nm = $('#pu-newname').value.trim(), pr = parseFloat($('#pu-newprice').value);
-      if(!nm){ toast('اكتب اسم الصنف الجديد',true); $('#pu-newname').focus(); return; }
-      if(!(pr>=0)){ toast('اكتب سعر البيع للزبون',true); $('#pu-newprice').focus(); return; }
-      base = {id:uid(),name:nm,price:round(pr),qty:0,sold:0,revenue:0,cost:null,created:Date.now()};
-    } else {
-      base = products.get(val);
-      if(!base){ toast('الصنف مش موجود',true); return; }
-    }
-    if(!(qty>0)){ toast('اكتب الكمية',true); $('#pu-qty').focus(); return; }
-    if(!(cost>=0)){ toast('اكتب سعر الجملة',true); $('#pu-cost').focus(); return; }
-    if(!(paid>=0)){ toast('المبلغ المدفوع غلط',true); $('#pu-paid').focus(); return; }
-    var p = Object.assign({},base,{qty:round(base.qty+qty),cost:round(cost)});
-    var entry = {id:uid(),type:'purchase',ts:Date.now(),pid:p.id,name:p.name,qty:round(qty),cost:round(cost),total:round(qty*cost),paid:round(paid)};
-    commit([p],Object.assign({},s,{entries:[entry].concat(s.entries||[])}));
-    $('#pu-form').reset();
-    updatePuTotal(); renderSup();
-    toast('اتسجلت البضاعة وزادت في المخزن');
-  });
-
-  $('#ee-qty').addEventListener('input',updateEeSum);
-  $('#ee-cost').addEventListener('input',updateEeSum);
-
-  $('#rt-prod').addEventListener('change',function(){
-    var p = products.get($('#rt-prod').value), s = suppliers.get(selSup);
-    if(!p) return;
-    var last = null;
-    ((s && s.entries) || []).forEach(function(x){ if(!last && x.type==='purchase' && x.pid===p.id) last = x; });
-    var c = last ? last.cost : p.cost;
-    $('#rt-cost').value = (c==null ? '' : c);
-    updateRtTotal();
-  });
-  $('#rt-qty').addEventListener('input',updateRtTotal);
-  $('#rt-cost').addEventListener('input',updateRtTotal);
-
-  $('#rt-form').addEventListener('submit',function(e){
-    e.preventDefault();
-    if(!ready()) return;
-    var s = suppliers.get(selSup);
-    if(!s) return;
-    var p = products.get($('#rt-prod').value);
-    var qty = parseFloat($('#rt-qty').value), cost = parseFloat($('#rt-cost').value);
-    if(!p){ toast('اختار الصنف',true); $('#rt-prod').focus(); return; }
-    if(!(qty>0)){ toast('اكتب الكمية المرتجعة',true); $('#rt-qty').focus(); return; }
-    if(!(cost>=0)){ toast('اكتب سعر الوحدة',true); $('#rt-cost').focus(); return; }
-    if(qty>p.qty){ toast('الفاضل من '+p.name+' '+fmt(p.qty)+' بس. مينفعش ترجّع أكتر منه.',true); return; }
-    var entry = {id:uid(),type:'return',ts:Date.now(),pid:p.id,name:p.name,qty:round(qty),cost:round(cost),total:round(qty*cost),note:$('#rt-note').value.trim()};
-    commit([Object.assign({},p,{qty:round(p.qty-qty)})],Object.assign({},s,{entries:[entry].concat(s.entries||[])}));
-    $('#rt-form').reset();
-    updateRtTotal(); renderSup();
-    toast('اتسجّل المرتجع. اتخصم '+money(entry.total)+' من حسابك');
-  });
-
-  $('#pay-form').addEventListener('submit',function(e){
-    e.preventDefault();
-    if(!ready()) return;
-    var s = suppliers.get(selSup);
-    if(!s) return;
-    var amt = parseFloat($('#pay-amount').value);
-    if(!(amt>0)){ toast('اكتب المبلغ',true); $('#pay-amount').focus(); return; }
-    var entry = {id:uid(),type:'payment',ts:Date.now(),amount:round(amt),note:$('#pay-note').value.trim()};
-    commit([],Object.assign({},s,{entries:[entry].concat(s.entries||[])}));
-    $('#pay-form').reset();
-    toast('اتسجلت الدفعة: '+money(amt));
-  });
-
-  $('#b-export').addEventListener('click',exportBackup);
-  $('#b-import').addEventListener('click',function(){ $('#b-file').click(); });
-  $('#b-file').addEventListener('change',function(e){
-    var f = e.target.files && e.target.files[0];
-    if(!f) return;
-    var r = new FileReader();
-    r.onload = function(){
-      var d = null;
-      try{ d = cleanBackup(JSON.parse(r.result)); }catch(err){}
-      if(!d){ toast('الملف ده مش نسخة احتياطية صالحة',true); return; }
-      pendingRestore = d;
-      $('#b-msg').textContent = 'الملف فيه '+d.products.length+' صنف و '+d.sales.length+' فاتورة و '+d.suppliers.length+' مورد. لو كملت، البيانات الحالية هتتبدل بيها. حمّل نسخة من الحالي الأول لو محتاجها.';
-      $('#b-confirm').hidden = false;
-    };
-    r.onerror = function(){ toast('ماقدرتش أقرا الملف',true); };
-    r.readAsText(f);
-    e.target.value = '';
-  });
-  $('#b-yes').addEventListener('click',function(){
-    if(!pendingRestore || mode!=='local') return;
-    products = new Map();
-    pendingRestore.products.forEach(function(p){ products.set(p.id,p); });
-    sales = pendingRestore.sales;
-    suppliers = new Map();
-    pendingRestore.suppliers.forEach(function(s){ suppliers.set(s.id,s); });
-    selSup = null;
-    cart = {}; pendingRestore = null;
-    $('#b-confirm').hidden = true;
-    lsSave(); render();
-    toast('اتسترجعت البيانات');
-  });
-  $('#b-no').addEventListener('click',function(){ pendingRestore = null; $('#b-confirm').hidden = true; });
-
-  /* ---------- الترخيص ---------- */
-  var LIC_KEY = 'makhzani-license', SEEN_KEY = 'makhzani-seen', DEV_KEY = 'makhzani-device';
-
-  function getDeviceId(){
-    var id = null;
-    try{ id = localStorage.getItem(DEV_KEY); }catch(e){}
-    if(!id){
-      var al = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '', a = new Uint8Array(8);
-      try{ crypto.getRandomValues(a); }catch(e){ for(var j=0;j<8;j++) a[j] = Math.floor(Math.random()*256); }
-      for(var i=0;i<8;i++) s += al.charAt(a[i]%al.length);
-      id = s.slice(0,4)+'-'+s.slice(4);
-      try{ localStorage.setItem(DEV_KEY,id); }catch(e){}
-    }
-    return id;
-  }
-  function b64uToBytes(s){
-    s = s.replace(/-/g,'+').replace(/_/g,'/');
-    while(s.length%4) s += '=';
-    var bin = atob(s), out = new Uint8Array(bin.length);
-    for(var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
-    return out;
-  }
-  function verifyCode(code){
-    return new Promise(function(resolve){
-      try{
-        if(!(window.crypto && crypto.subtle)) return resolve({ok:false,nosub:true});
-        var parts = String(code||'').replace(/\s+/g,'').split('.');
-        if(parts.length!==2) return resolve({ok:false});
-        var pb = b64uToBytes(parts[0]), sig = b64uToBytes(parts[1]);
-        var p = JSON.parse(new TextDecoder().decode(pb));
-        crypto.subtle.importKey('jwk',JSON.parse(LICENSE_KEY_JWK),{name:'ECDSA',namedCurve:'P-256'},false,['verify'])
-          .then(function(k){ return crypto.subtle.verify({name:'ECDSA',hash:'SHA-256'},k,sig,pb); })
-          .then(function(ok){ resolve(ok ? {ok:true,p:p} : {ok:false}); })
-          .catch(function(){ resolve({ok:false}); });
-      }catch(e){ resolve({ok:false}); }
-    });
-  }
-  function todayStr(){
-    var d = new Date(), z = function(n){ n = String(n); return n.length<2 ? '0'+n : n; };
-    return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
-  }
-  function daysBetween(a,b){
-    var x = a.split('-'), y = b.split('-');
-    return Math.round((Date.UTC(+y[0],y[1]-1,+y[2])-Date.UTC(+x[0],x[1]-1,+x[2]))/86400000);
-  }
-  function evalLicense(p){
-    if(!p || !/^\d{4}-\d{2}-\d{2}$/.test(String(p.e||'')) || String(p.d||'').toUpperCase()!==getDeviceId()) return {s:'device'};
-    var now = Date.now(), seen = 0;
-    try{ seen = +localStorage.getItem(SEEN_KEY) || 0; }catch(e){}
-    if(now < seen - 2*86400000) return {s:'clock'};
-    var left = daysBetween(todayStr(),p.e);
-    if(left<0) return {s:'expired',left:left};
-    try{ if(now>seen) localStorage.setItem(SEEN_KEY,String(now)); }catch(e){}
-    return {s:'ok',left:left};
-  }
-  function showLock(title,msg){
-    locked = true;
-    document.documentElement.className = (document.documentElement.className.replace(/\blocked\b/g,'')+' locked').replace(/\s+/g,' ');
-    $('#lock').hidden = false;
-    $('#lock-title').textContent = title;
-    $('#lock-msg').textContent = msg || '';
-    $('#lock-dev').value = getDeviceId();
-    $('#lock-contact').textContent = CONTACT;
-    $('#lic-note').hidden = true;
-  }
-  function hideLock(){
-    locked = false;
-    document.documentElement.className = document.documentElement.className.replace(/\blocked\b/g,'').replace(/\s+/g,' ');
-    $('#lock').hidden = true;
-  }
-  function updateNote(left){
-    var el = $('#lic-note');
-    if(left<=7){
-      el.textContent = 'الاشتراك ينتهي '+(left===0 ? 'النهارده' : 'بعد '+left+' يوم')+'. '+CONTACT;
-      el.hidden = false;
-    } else el.hidden = true;
-  }
-  function lockFor(e,p){
-    if(e.s==='expired') showLock('انتهى الاشتراك','الاشتراك انتهى يوم '+p.e+'. ابعت رقم جهازك واطلب كود التجديد.');
-    else if(e.s==='clock') showLock('تاريخ الجهاز غلط','ساعة الكمبيوتر راجعة لورا. اظبط التاريخ والوقت وهيشتغل تاني لوحده.');
-    else showLock('التطبيق محتاج تفعيل','ابعت رقم جهازك واطلب كود التفعيل.');
-  }
-  function licenseCheck(){
-    if(!LICENSE_KEY_JWK || mode==='db' || !lic) return;
-    var e = evalLicense(lic);
-    if(e.s==='ok'){ if(locked) hideLock(); updateNote(e.left); } else lockFor(e,lic);
-  }
-  function licenseStart(){
-    if(!LICENSE_KEY_JWK){ hideLock(); return; }
-    var saved = null;
-    try{ saved = localStorage.getItem(LIC_KEY); }catch(e){}
-    if(!saved){ showLock('التطبيق محتاج تفعيل','ابعت رقم جهازك واطلب كود التفعيل.'); return; }
-    verifyCode(saved).then(function(r){
-      if(!r.ok){ showLock('التطبيق محتاج تفعيل','الكود المحفوظ مش سليم. اطلب كود جديد.'); return; }
-      lic = r.p; licenseCheck();
-    });
-  }
-
-  $('#lock-copy').addEventListener('click',function(){
-    var i = $('#lock-dev'); i.select();
-    try{ document.execCommand('copy'); toast('اتنسخ رقم الجهاز'); }catch(e){}
-  });
-  $('#lock-backup').addEventListener('click',exportBackup);
-  $('#lock-go').addEventListener('click',function(){
-    var code = $('#lock-code').value, err = $('#lock-err');
-    err.textContent = '';
-    verifyCode(code).then(function(r){
-      if(r.nosub){ err.textContent = 'المتصفح ده مش بيدعم التفعيل. افتح الملف بمتصفح Chrome.'; return; }
-      if(!r.ok){ err.textContent = 'الكود غلط. اتأكد إنك نسخته كله.'; return; }
-      var e = evalLicense(r.p);
-      if(e.s==='device'){ err.textContent = 'الكود ده متعمل لجهاز تاني. ابعت رقم جهازك اللي فوق.'; return; }
-      if(e.s==='expired'){ err.textContent = 'الكود ده منتهي. اطلب كود جديد.'; return; }
-      if(e.s==='clock'){ err.textContent = 'ساعة الجهاز غلط. اظبط التاريخ وجرّب تاني.'; return; }
-      try{ localStorage.setItem(LIC_KEY,String(code).replace(/\s+/g,'')); }catch(x){}
-      lic = r.p; hideLock(); updateNote(e.left);
-      toast('اتفعّل التطبيق لحد '+r.p.e);
-    });
-  });
-
-  /* ---------- بداية ---------- */
-  function startLocal(){ mode = 'local'; lsLoad(); render(); licenseStart(); }
-  function startDb(c){
-    db = c; mode = 'db'; hideLock();
-    var fail = function(err){ toast('مشكلة في الاتصال بالبيانات: '+((err&&err.message)||''),true); };
-    db.collection('products').onSnapshot(function(snap){
-      var m = new Map();
-      snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
-      products = m; render();
-    },fail);
-    db.collection('sales').orderBy('ts','desc').limit(1000).onSnapshot(function(snap){
-      sales = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); });
-      render();
-    },fail);
-    db.collection('suppliers').onSnapshot(function(snap){
-      var m = new Map();
-      snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
-      suppliers = m; render();
-    },fail);
-    render();
-  }
-  render();
-  setInterval(licenseCheck,60000);
-  var dbReq = null;
-  try{ dbReq = window.claude ? window.claude.use('db') : null; }catch(e){ dbReq = null; }
-  if(dbReq && dbReq.then){
-    dbReq.then(function(c){ if(c) startDb(c); else startLocal(); }, function(){ startLocal(); });
-  } else {
-    startLocal();
-  }
-})();
-</script>
+<script src="fb.js" charset="utf-8"></script>
+<script src="app1.js" charset="utf-8"></script>
+<script src="app2.js" charset="utf-8"></script>
+<script src="app3.js" charset="utf-8"></script>
+<script src="cloud.js" charset="utf-8"></script>
+<script src="app4.js" charset="utf-8"></script>
 </body>
 </html>
