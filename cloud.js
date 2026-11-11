@@ -123,17 +123,17 @@ function cloudDataStart(shopId){
   db.collection('products').onSnapshot(function(snap){
     var m = new Map();
     snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
-    products = m; got('p');
+    products = m; cloudMeta('p',snap); got('p');
   },fail);
   db.collection('sales').orderBy('ts','desc').limit(1000).onSnapshot(function(snap){
     sales = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); });
-    var mx = invSeq; sales.forEach(function(s){ if(s.no>mx) mx = s.no; }); invSeq = mx;
+    var mx = invSeq; sales.forEach(function(s){ if(s.no>mx) mx = s.no; }); invSeq = mx; cloudMeta('s',snap);
     got('s');
   },fail);
   db.collection('suppliers').onSnapshot(function(snap){
     var m = new Map();
     snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
-    suppliers = m; got('u');
+    suppliers = m; cloudMeta('u',snap); got('u');
   },fail);
   /* أخطاء الكتابة (اشتراك منتهي، صنف اتمسح…) تظهر للمستخدم */
   window.FB_ONERR = function(e){
@@ -183,13 +183,22 @@ function renderCloudMigrate(){
   $('#cd-migrate').hidden = !empty;
   m.hidden = false;
 }
+var cloudDiag = {};
+function cloudMeta(k,snap){
+  var m = snap && snap.metadata;
+  cloudDiag[k] = {c:m ? (m.fromCache ? 'جهاز' : 'سيرفر') : '?', w:m ? m.hasPendingWrites : false};
+}
+function cloudDiagText(){
+  var d = cloudDiag, z = function(k){ return d[k] ? d[k].c+(d[k].w ? '+معلّق' : '') : '-'; };
+  return 'تشخيص: محل '+(cloudInfo && cloudInfo.shopId ? cloudInfo.shopId.slice(0,6) : '?')+' · أصناف '+products.size+' ('+z('p')+') · فواتير '+sales.length+' ('+z('s')+') · موردين '+suppliers.size+' ('+z('u')+') · آخر رقم '+invSeq;
+}
 function renderCloudInfo(){
   renderCloudMigrate();
   var box = $('#cloud-info');
   if(!box) return;
   if(!window.CLOUD_ON || !cloudInfo){ box.hidden = true; return; }
   var left = Math.ceil((cloudInfo.exp-Date.now())/86400000);
-  $('#cd-info').textContent = (cloudInfo.name ? cloudInfo.name+' · ' : '')+cloudInfo.email+' · الاشتراك لحد '+cloudDate(cloudInfo.exp)+' (باقي '+Math.max(left,0)+' يوم) · آخر تحقق من السيرفر '+cloudDate(cloudInfo.checked);
+  $('#cd-info').textContent = (cloudInfo.name ? cloudInfo.name+' · ' : '')+cloudInfo.email+' · الاشتراك لحد '+cloudDate(cloudInfo.exp)+' (باقي '+Math.max(left,0)+' يوم) · آخر تحقق من السيرفر '+cloudDate(cloudInfo.checked)+' — '+cloudDiagText();
   box.hidden = false;
 }
 
