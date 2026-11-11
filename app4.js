@@ -351,7 +351,7 @@
       try{ d = cleanBackup(JSON.parse(r.result)); }catch(err){}
       if(!d){ toast('الملف ده مش نسخة احتياطية صالحة',true); return; }
       pendingRestore = d;
-      $('#b-msg').textContent = 'الملف فيه '+d.products.length+' صنف و '+d.sales.length+' فاتورة و '+d.suppliers.length+' مورد. لو كملت، البيانات الحالية هتتبدل بيها. حمّل نسخة من الحالي الأول لو محتاجها.';
+      $('#b-msg').textContent = 'الملف فيه '+d.products.length+' صنف و '+d.sales.length+' فاتورة و '+d.suppliers.length+' مورد. لو كملت، البيانات الحالية '+(mode==='cloud' ? 'للمحل كله (على كل الأجهزة) ' : '')+'هتتبدل بيها. حمّل نسخة من الحالي الأول لو محتاجها.';
       $('#b-confirm').hidden = false;
     };
     r.onerror = function(){ toast('ماقدرتش أقرا الملف',true); };
@@ -359,8 +359,9 @@
     e.target.value = '';
   });
   $('#b-yes').addEventListener('click',function(){
-    if(!pendingRestore || mode!=='local' || !isOwner()) return;
+    if(!pendingRestore || (mode!=='local' && mode!=='cloud') || !isOwner()) return;
     logA('restore','استرجاع نسخة احتياطية ('+pendingRestore.products.length+' صنف، '+pendingRestore.sales.length+' فاتورة، '+pendingRestore.suppliers.length+' مورد)');
+    var oldIds = {p:Array.from(products.keys()),s:sales.map(function(x){ return x.id; }),u:Array.from(suppliers.keys())};
     products = new Map();
     pendingRestore.products.forEach(function(p){ products.set(p.id,p); });
     sales = pendingRestore.sales;
@@ -369,9 +370,12 @@
     suppliers = new Map();
     pendingRestore.suppliers.forEach(function(s){ suppliers.set(s.id,s); });
     selSup = null;
-    cart = {}; pendingRestore = null;
+    cart = {}; 
+    if(mode==='cloud') cloudRestoreWrite(pendingRestore,oldIds);
+    pendingRestore = null;
     $('#b-confirm').hidden = true;
-    lsSave(); render();
+    if(mode!=='cloud') lsSave();
+    render();
     toast('اتسترجعت البيانات');
   });
   $('#b-no').addEventListener('click',function(){ pendingRestore = null; $('#b-confirm').hidden = true; });

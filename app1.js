@@ -71,9 +71,30 @@
     if(mode==='pending'){ toast('استنى ثواني لحد ما البيانات تتحمّل',true); return false; }
     return true;
   }
+  /* كتابة صنف: في السحابة بنبعت الفرق في الكمية مش الكمية نفسها، عشان بيع جهاز تاني في نفس اللحظة ما يتمسحش */
+  function prodWrite(u,old){
+    if(mode!=='cloud' || !old) return db.doc('products/'+u.id).set(u);
+    var rest = Object.assign({},u); delete rest.qty; delete rest.sold; delete rest.revenue;
+    var d = {}, f = {qty:1,sold:1,revenue:1};
+    Object.keys(f).forEach(function(k){ var x = round((+u[k]||0)-(+old[k]||0)); if(x) d[k] = x; });
+    return db.upd('products/'+u.id,rest,d);
+  }
+  /* كتابة مورد: الحركات الجديدة بتتضاف لوحدها، وأي تعديل أو حذف بيكتب المورد كله */
+  function supWrite(s,old){
+    if(mode!=='cloud' || !old) return db.doc('suppliers/'+s.id).set(s);
+    var oe = old.entries||[], ne = s.entries||[], oid = {}, nid = {};
+    oe.forEach(function(e){ oid[e.id] = e; }); ne.forEach(function(e){ nid[e.id] = 1; });
+    var removed = oe.some(function(e){ return !nid[e.id]; });
+    var changed = ne.some(function(e){ return oid[e.id] && JSON.stringify(e)!==JSON.stringify(oid[e.id]); });
+    if(removed || changed) return db.doc('suppliers/'+s.id).set(s);
+    var added = ne.filter(function(e){ return !oid[e.id]; });
+    var rest = Object.assign({},s); delete rest.entries;
+    return db.upd('suppliers/'+s.id,rest,null,added.length ? {entries:added} : null);
+  }
   function putProduct(p){
+    var old = products.get(p.id);
     products.set(p.id,p);
-    persist(function(){ return db.doc('products/'+p.id).set(p); });
+    persist(function(){ return prodWrite(p,old); });
   }
   function removeProduct(id){
     products.delete(id);
@@ -96,20 +117,22 @@
   }
 
   function putSupplier(s){
+    var old = suppliers.get(s.id);
     suppliers.set(s.id,s);
-    persist(function(){ return db.doc('suppliers/'+s.id).set(s); });
+    persist(function(){ return supWrite(s,old); });
   }
   function removeSupplier(id){
     suppliers.delete(id);
     persist(function(){ return db.doc('suppliers/'+id).delete(); });
   }
   function commit(prods,sup){
+    var olds = prods.map(function(p){ return products.get(p.id); }), oldSup = suppliers.get(sup.id);
     prods.forEach(function(p){ products.set(p.id,p); });
     suppliers.set(sup.id,sup);
     persist(function(){
       var ch = Promise.resolve();
-      prods.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
-      return ch.then(function(){ return db.doc('suppliers/'+sup.id).set(sup); });
+      prods.forEach(function(u,i){ ch = ch.then(function(){ return prodWrite(u,olds[i]); }); });
+      return ch.then(function(){ return supWrite(sup,oldSup); });
     });
   }
 
@@ -267,7 +290,7 @@
     }).join('') : '<tr><td colspan="4" class="note">مفيش أصناف لسه.</td></tr>';
     var recent = sales.filter(function(s){ return period==='all' || s.ts>=r.t0; }).slice(0,15);
     $('#recent').innerHTML = recent.length ? recent.map(function(s){
-      var when = new Date(s.ts).toLocaleString('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+      var when = dt(s.ts);
       var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
       return '<li><span class="when">'+esc(invCode(s))+' · '+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
         '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button><button type="button" class="btn sm" data-act="print" data-sid="'+esc(s.id)+'">اطبع</button>'+tag+'</div></li>';

@@ -109,6 +109,16 @@
             try{ track(F.updateDoc(F.doc(fs,root+path),o)); }catch(e){ onErr(e); }
             return Promise.resolve();
           },
+          /* تعديل حقول + زيادة/نقص أرقام + إضافة عناصر لمصفوفة، من غير ما نكتب فوق شغل جهاز تاني. بيفشل لو المستند اتمسح */
+          upd: function(path,plain,deltas,unions){
+            try{
+              var o = clean(plain||{});
+              Object.keys(deltas||{}).forEach(function(k){ o[k] = F.increment(deltas[k]); });
+              Object.keys(unions||{}).forEach(function(k){ o[k] = F.arrayUnion.apply(null,clean(unions[k])); });
+              track(F.updateDoc(F.doc(fs,root+path),o));
+            }catch(e){ onErr(e); }
+            return Promise.resolve();
+          },
           /* رقم فاتورة متسلسل للمحل كله (محتاج نت). floor = أكبر رقم الجهاز شايفه */
           nextNo: function(floor){
             var ref = F.doc(fs,root+'meta/counter');

@@ -41,12 +41,13 @@
   }
 
   function applySaleChange(ns,prods,delId){
+    var olds = prods.map(function(p){ return products.get(p.id); });
     prods.forEach(function(p){ products.set(p.id,p); });
     if(ns) sales = sales.map(function(x){ return x.id===ns.id ? ns : x; });
     else sales = sales.filter(function(x){ return x.id!==delId; });
     persist(function(){
       var ch = Promise.resolve();
-      prods.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
+      prods.forEach(function(u,i){ ch = ch.then(function(){ return prodWrite(u,olds[i]); }); });
       return ch.then(function(){ return ns ? db.doc('sales/'+ns.id).set(ns) : db.doc('sales/'+delId).delete(); });
     });
   }
@@ -296,6 +297,7 @@
   function saveShopCfg(){
     shopCfg = {name:$('#ps-name').value.trim(),foot:$('#ps-foot').value.trim(),w:$('#ps-w').value==='58' ? '58' : '80'};
     try{ localStorage.setItem('makhzani-print',JSON.stringify(shopCfg)); }catch(e){}
+    if(mode==='cloud' && db) db.doc('meta/print').set(shopCfg);
     toast('اتحفظت بيانات الفاتورة');
   }
   function buildReceipt(s){
@@ -430,7 +432,8 @@
         toast('تم البيع: '+money(total));
         focusQ();
       };
-      db.nextNo(floor).then(fin,function(){ fin(floor+1); });
+      /* من غير نت: الفاتورة بتتحفظ برقم مؤقت وبتاخد رقمها الحقيقي أول ما النت يرجع (عشان مفيش رقمين يتكرروا) */
+      db.nextNo(floor).then(fin,function(){ sale.pn = true; sale.dev = cloudDevId(); fin(0); });
       return;
     }
     sale.no = ++invSeq;
@@ -465,7 +468,7 @@
 
   function renderBackup(){
     $('#backup').hidden = ((mode!=='local' && mode!=='cloud') || !isOwner());
-    $('#b-import').hidden = (mode==='cloud');
+    $('#b-import').hidden = false;
     var last = null;
     try{ last = localStorage.getItem(BK_KEY); }catch(e){}
     $('#b-last').textContent = last
