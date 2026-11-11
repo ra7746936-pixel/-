@@ -1,4 +1,4 @@
-window.APP_VER = 'v6';
+window.APP_VER = 'v7';
 /* مخزني — حساب المحل والاشتراك من السحابة (المرحلة 1).
    الدخول بإيميل وباسورد مرة واحدة على الجهاز، والاشتراك بيتقرا من السيرفر ويتجدد من لوحة الإدارة. */
 var CLOUD_KEY = 'makhzani-cloud';
@@ -126,7 +126,7 @@ function cloudDataStart(shopId){
     snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
     products = m; cloudMeta('p',snap); got('p');
   },fail);
-  db.collection('sales').orderBy('ts','desc').limit(1000).onSnapshot(function(snap){
+  db.collection('sales').where('ts','>=',Date.now()-CLOUD_DAYS*86400000).orderBy('ts','desc').limit(1500).onSnapshot(function(snap){
     sales = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); });
     setTimeout(cloudNumberPending,300);
     var mx = invSeq; sales.forEach(function(s){ if(s.no>mx) mx = s.no; }); invSeq = mx; cloudMeta('s',snap);
@@ -147,13 +147,14 @@ function cloudDataStart(shopId){
     var cd = null, fc = !!(snap.metadata && snap.metadata.fromCache);
     snap.docs.forEach(function(d){
       if(d.id==='sec'){ try{ cd = JSON.parse(d.data().data); }catch(e){} }
+      if(d.id==='backup'){ cloudLastBackup = +d.data().ts || 0; try{ renderBackup(); }catch(e){} }
       if(d.id==='print'){ var pc = d.data(); shopCfg = {name:pc.name||'',foot:pc.foot||'',w:pc.w==='58' ? '58' : '80'}; cloudPrintFill(); }
     });
     cloudSecSync(cd,shopId,!fc);
     if(!metaOk && (!fc || cd)){ metaOk = true; clearTimeout(metaTimer); got('m'); }
   },fail);
   /* سجل الأمان: على السيرفر، بيظهر على كل الأجهزة */
-  db.collection('audit').orderBy('ts','desc').limit(2000).onSnapshot(function(snap){
+  db.collection('audit').orderBy('ts','desc').limit(400).onSnapshot(function(snap){
     var list = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); }).reverse();
     list.forEach(function(e,i){ e.n = i+1; });
     aud = list; cloudMeta('a',snap); cloudAuditMigrate(shopId);
@@ -224,6 +225,18 @@ function cloudNumberPending(){
   })();
 }
 window.addEventListener('online',function(){ setTimeout(cloudNumberPending,800); });
+/* الفواتير والسجل بيتحمّلوا لآخر فترة بس عشان نوفّر قراءات. النسخة الاحتياطية بتجيب كله من السيرفر. */
+var CLOUD_DAYS = 45;
+function cloudAll(cb){
+  if(mode!=='cloud' || !db || !db.listAll){ cb(sales,aud); return; }
+  toast('بجيب كل البيانات من السيرفر…');
+  Promise.all([db.listAll('sales'),db.listAll('audit')]).then(function(r){
+    var A = r[1].sort(function(a,b){ return a.ts-b.ts; }); A.forEach(function(e,i){ e.n = i+1; });
+    cb(r[0].sort(function(a,b){ return b.ts-a.ts; }),A,true);
+  },function(){ toast('محتاج نت عشان أجيب النسخة الكاملة. جرّب تاني لما النت يرجع.',true); });
+}
+var cloudLastBackup = 0;
+function cloudMarkBackup(){ if(mode==='cloud' && db){ cloudLastBackup = Date.now(); db.doc('meta/backup').set({ts:cloudLastBackup}); } }
 var cloudAudDone = false;
 function cloudAuditMigrate(shopId){
   if(cloudAudDone) return; cloudAudDone = true;
@@ -349,6 +362,6 @@ window.addEventListener('fb-pend',function(){ if(typeof renderStatus==='function
 /* تشغيل بدون نت: خدمة التخزين على الجهاز (بتشتغل على https بس) */
 try{
   if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
-    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=6').catch(function(){}); });
+    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=7').catch(function(){}); });
   }
 }catch(e){}

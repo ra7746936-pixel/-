@@ -245,3 +245,7 @@ html.authing #app{display:none}
 
 #cd-form{display:flex;flex-direction:column;gap:12px}
 #cd-form[hidden]{display:none}
+
+.bk-warn{margin:10px 0 0;padding:10px 14px;border-radius:12px;background:#fff4d6;color:#6b4a00;border:1px solid #f0d58a;font-size:.92rem;line-height:1.6}
+@media (prefers-color-scheme: dark){ .bk-warn{background:#3a2f0e;color:#f3d98b;border-color:#6b5517} }
+.bk-warn[hidden]{display:none}

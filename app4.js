@@ -360,8 +360,12 @@
   });
   $('#b-yes').addEventListener('click',function(){
     if(!pendingRestore || (mode!=='local' && mode!=='cloud') || !isOwner()) return;
+    if(mode==='cloud' && !pendingRestore.__all){
+      withAll(function(S,A,full){ var d = pendingRestore; d.__all = S.map(function(x){ return x.id; }); $('#b-yes').click(); });
+      return;
+    }
     logA('restore','استرجاع نسخة احتياطية ('+pendingRestore.products.length+' صنف، '+pendingRestore.sales.length+' فاتورة، '+pendingRestore.suppliers.length+' مورد)');
-    var oldIds = {p:Array.from(products.keys()),s:sales.map(function(x){ return x.id; }),u:Array.from(suppliers.keys())};
+    var oldIds = {p:Array.from(products.keys()),s:(pendingRestore.__all||sales.map(function(x){ return x.id; })),u:Array.from(suppliers.keys())};
     products = new Map();
     pendingRestore.products.forEach(function(p){ products.set(p.id,p); });
     sales = pendingRestore.sales;
@@ -429,6 +433,9 @@
   }
   function exportXlsx(){
     if(!isOwner()){ toast('الملف ده للمالك بس',true); return; }
+    withAll(function(S){ doExportXlsx(S); });
+  }
+  function doExportXlsx(sales){
     var prods = Array.from(products.values()), sups = Array.from(suppliers.values());
     var inv = [['رقم الفاتورة','التاريخ','البائع','الصنف','الكمية','سعر الوحدة','الإجمالي','سعر الجملة','الربح']];
     var rev = 0, profit = 0;
@@ -489,6 +496,7 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); },1000);
     try{ localStorage.setItem(BK_KEY,String(Date.now())); }catch(e){}
+    if(typeof cloudMarkBackup==='function') cloudMarkBackup();
     renderBackup();
     logA('backup','تحميل نسخة Excel');
     toast('اتحمّلت نسخة Excel. افتحها بـ Excel');

@@ -85,9 +85,16 @@
             var q = F.collection(fs,root+name), api = {
               orderBy: function(f,d){ q = F.query(q,F.orderBy(f,d)); return api; },
               limit: function(n){ q = F.query(q,F.limit(n)); return api; },
+              where: function(f,op,v){ q = F.query(q,F.where(f,op,v)); return api; },
               onSnapshot: function(ok,err){ return F.onSnapshot(q,ok,err); }
             };
             return api;
+          },
+          /* قراءة كل مستندات مجموعة من السيرفر نفسه (للنسخ الاحتياطي). بتفشل لو مفيش نت بدل ما ترجّع نسخة ناقصة */
+          listAll: function(name){
+            return F.getDocsFromServer(F.collection(fs,root+name)).then(function(q){
+              return q.docs.map(function(d){ var v = d.data(); v.id = d.id; return v; });
+            });
           },
           doc: function(path){
             var ref = F.doc(fs,root+path);

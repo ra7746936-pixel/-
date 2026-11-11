@@ -471,13 +471,24 @@
     $('#b-import').hidden = false;
     var last = null;
     try{ last = localStorage.getItem(BK_KEY); }catch(e){}
+    var cl = (typeof cloudLastBackup!=='undefined') ? cloudLastBackup : 0;
+    if(cl > (+last||0)) last = cl;
     $('#b-last').textContent = last
       ? 'آخر نسخة احتياطية: '+dt(+last)
       : 'لسه ماعملتش نسخة احتياطية.';
+    /* تذكير للمالك لو عدّى 3 أيام من غير نسخة */
+    var w = $('#bk-warn');
+    if(w){
+      var old = !last || (Date.now()-(+last)) > 3*86400000;
+      w.hidden = !(old && isOwner() && (mode==='cloud' || mode==='local'));
+      if(!w.hidden) w.textContent = last ? 'عدّى أكتر من 3 أيام على آخر نسخة احتياطية. حمّل نسخة Excel من تاب الأمان.' : 'ماعملتش نسخة احتياطية لحد دلوقتي. حمّل نسخة Excel من تاب الأمان.';
+    }
   }
 
-  function exportBackup(){
-    var data = {app:'makhzani',version:1,exportedAt:Date.now(),products:Array.from(products.values()),sales:sales,suppliers:Array.from(suppliers.values()),seq:invSeq,audit:aud};
+  function withAll(cb){ if(typeof cloudAll==='function') cloudAll(cb); else cb(sales,aud); }
+  function exportBackup(){ withAll(doExportBackup); }
+  function doExportBackup(S,A){
+    var data = {app:'makhzani',version:1,exportedAt:Date.now(),products:Array.from(products.values()),sales:S,suppliers:Array.from(suppliers.values()),seq:invSeq,audit:A};
     var blob = new Blob([JSON.stringify(data)],{type:'application/json'});
     var url = URL.createObjectURL(blob);
     var d = new Date();
@@ -487,6 +498,7 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(url); },1000);
     try{ localStorage.setItem(BK_KEY,String(Date.now())); }catch(e){}
+    if(typeof cloudMarkBackup==='function') cloudMarkBackup();
     renderBackup();
     logA('backup','تحميل نسخة احتياطية');
     toast('اتحمّل ملف الاسترجاع. احتفظ بيه في مكان آمن');
