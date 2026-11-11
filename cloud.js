@@ -139,7 +139,7 @@ function cloudDataStart(shopId){
   window.FB_ONERR = function(e){
     var now = Date.now(); if(now-cloudErrAt<4000) return; cloudErrAt = now;
     var c = (e && e.code) || '';
-    toast(c==='permission-denied' ? 'الحفظ اترفض: الاشتراك منتهي أو موقوف.' : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||'؟')+')',true);
+    toast(c==='permission-denied' ? 'الحفظ اترفض: الاشتراك منتهي أو موقوف.' : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||(e&&e.message)||'؟')+')',true);
   };
   return true;
 }

@@ -42,6 +42,8 @@
       /* كاش دائم على الجهاز: الكاشير يكمل أوفلاين والبيانات تتزامن لما النت يرجع */
       fs = F.initializeFirestore(app,{localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})});
     }catch(e){ fs = F.getFirestore(app); }
+    /* Firestore بيرفض أي حقل قيمته undefined (وده كان بيوقف الحفظ كله). بنشيلها قبل الإرسال */
+    function clean(d){ return JSON.parse(JSON.stringify(d)); }
     function onErr(e){ try{ if(window.FB_ONERR) window.FB_ONERR(e); }catch(x){} }
     window.FB = {
       onUser: function(cb){ return Au.onAuthStateChanged(auth,cb); },
@@ -83,15 +85,21 @@
           doc: function(path){
             var ref = F.doc(fs,root+path);
             return {
-              set: function(d){ F.setDoc(ref,d).catch(onErr); return Promise.resolve(); },
-              delete: function(){ F.deleteDoc(ref).catch(onErr); return Promise.resolve(); }
+              set: function(d){
+                try{ F.setDoc(ref,clean(d)).catch(onErr); }catch(e){ onErr(e); }
+                return Promise.resolve();
+              },
+              delete: function(){
+                try{ F.deleteDoc(ref).catch(onErr); }catch(e){ onErr(e); }
+                return Promise.resolve();
+              }
             };
           },
           /* زيادة أو نقص رقم من غير ما نكتب فوق تعديل جهاز تاني */
           inc: function(path,deltas){
             var o = {};
             Object.keys(deltas).forEach(function(k){ o[k] = F.increment(deltas[k]); });
-            F.updateDoc(F.doc(fs,root+path),o).catch(onErr);
+            try{ F.updateDoc(F.doc(fs,root+path),o).catch(onErr); }catch(e){ onErr(e); }
             return Promise.resolve();
           },
           /* رقم فاتورة متسلسل للمحل كله (محتاج نت). floor = أكبر رقم الجهاز شايفه */
