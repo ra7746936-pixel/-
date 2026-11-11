@@ -12,6 +12,8 @@
   };
   var SDK_VERSION = '13.2.0';
   window.FB_CONFIG = CFG;
+  window.APP_VER = 'v3';
+  window.FB_PEND = 0;
   window.FB_ADMIN_UID = 'dqK2AqfNGIMSlQ6UkWcLPxC32Uh1';
 
   function fire(n){ try{ window.dispatchEvent(new Event(n)); }catch(e){} }
@@ -44,6 +46,11 @@
     }catch(e){ fs = F.getFirestore(app); }
     /* Firestore بيرفض أي حقل قيمته undefined (وده كان بيوقف الحفظ كله). بنشيلها قبل الإرسال */
     function clean(d){ return JSON.parse(JSON.stringify(d)); }
+    /* عدّاد الكتابات اللي لسه ما وصلتش للسيرفر (بيظهر في شريط الحالة) */
+    function track(p){
+      window.FB_PEND++; fire('fb-pend');
+      p.then(function(){ window.FB_PEND--; fire('fb-pend'); },function(e){ window.FB_PEND--; fire('fb-pend'); onErr(e); });
+    }
     function onErr(e){ try{ if(window.FB_ONERR) window.FB_ONERR(e); }catch(x){} }
     window.FB = {
       onUser: function(cb){ return Au.onAuthStateChanged(auth,cb); },
@@ -86,11 +93,11 @@
             var ref = F.doc(fs,root+path);
             return {
               set: function(d){
-                try{ F.setDoc(ref,clean(d)).catch(onErr); }catch(e){ onErr(e); }
+                try{ track(F.setDoc(ref,clean(d))); }catch(e){ onErr(e); }
                 return Promise.resolve();
               },
               delete: function(){
-                try{ F.deleteDoc(ref).catch(onErr); }catch(e){ onErr(e); }
+                try{ track(F.deleteDoc(ref)); }catch(e){ onErr(e); }
                 return Promise.resolve();
               }
             };
@@ -99,7 +106,7 @@
           inc: function(path,deltas){
             var o = {};
             Object.keys(deltas).forEach(function(k){ o[k] = F.increment(deltas[k]); });
-            try{ F.updateDoc(F.doc(fs,root+path),o).catch(onErr); }catch(e){ onErr(e); }
+            try{ track(F.updateDoc(F.doc(fs,root+path),o)); }catch(e){ onErr(e); }
             return Promise.resolve();
           },
           /* رقم فاتورة متسلسل للمحل كله (محتاج نت). floor = أكبر رقم الجهاز شايفه */

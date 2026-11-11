@@ -234,3 +234,5 @@ $('#cd-logout2').addEventListener('click',function(){
   try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
   if(window.FB) FB.signOut().then(function(){ if(cloudStarted) location.reload(); });
 });
+
+window.addEventListener('fb-pend',function(){ if(typeof renderStatus==='function') renderStatus(); });

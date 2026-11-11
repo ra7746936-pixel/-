@@ -131,8 +131,9 @@
     if(mode==='db'){ el.textContent='محفوظ ومتزامن'; el.className='chip db'; }
     else if(mode==='cloud'){
       var on = (navigator.onLine!==false);
-      el.textContent = on ? 'متزامن مع السحابة' : 'أوفلاين: هيتزامن لما النت يرجع';
-      el.className = on ? 'chip db' : 'chip local';
+      var pn = window.FB_PEND||0, ver = ' · '+(window.APP_VER||'قديمة');
+      el.textContent = !on ? 'أوفلاين: هيتزامن لما النت يرجع'+ver : pn>0 ? 'بيتبعت للسيرفر ('+pn+')…'+ver : 'متزامن مع السحابة'+ver;
+      el.className = (on && !pn) ? 'chip db' : 'chip local';
     }
     else if(mode==='local'){ el.textContent='محفوظ على الجهاز ده بس'; el.className='chip local'; }
     else { el.textContent='بيحمّل…'; el.className='chip'; }
