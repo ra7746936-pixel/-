@@ -414,6 +414,7 @@
   }
   function renderAud(){
     var all = audFiltered(), list = all.slice(-audShow).reverse();
+    if(mode==='cloud'){ var st = $('#aud-state'); if(st && !/عدّلت|تحذير|محفوظ على السيرفر: /.test(st.textContent)) st.textContent = 'السجل على السيرفر: '+aud.length+' عملية'+(cloudDiag && cloudDiag.a ? ' ('+(cloudDiag.a.c==='سيرفر' ? 'واصل من السيرفر' : 'من الجهاز، مستني النت')+')' : ' (لسه بيحمّل)'); }
     $('#aud-list').innerHTML = list.length ? list.map(function(e){
       return '<li class="aud'+(SENS[e.act] ? ' sens' : '')+'"><span class="when">'+dt(e.ts)+' · '+esc(e.who)+'</span><span class="what">'+esc(e.txt)+'</span>'+
         '<span class="sum"><span class="pill '+(SENS[e.act] ? 'warn' : 'zero')+'">'+esc(ACT_NAME[e.act] || e.act)+'</span></span></li>';
