@@ -17,14 +17,15 @@ document.documentElement.className += ' authing';
 window.onerror=function(m){ window.__err=m; };
 setTimeout(function(){
   var s=document.getElementById('sync');
-  if(s && s.textContent.indexOf('بيحمّل')>-1){
+  var cl=document.getElementById('cloud');
+  if(s && s.textContent.indexOf('بيحمّل')>-1 && !(window.CLOUD_ON && !window.FB_ERR && !window.__err)){
     var d=document.createElement('div');
     d.style.cssText='background:#8F2A1F;color:#fff;padding:12px;margin:8px;border-radius:8px;font-size:14px';
     var v=(navigator.userAgent.match(/Chrome\/(\d+)/)||[])[1];
     d.textContent='البرنامج مش شغال. تأكد إن كل الملفات (index.html و style.css و fb.js و app1.js و app2.js و app3.js و cloud.js و app4.js) في نفس الفولدر واتنسخوا كاملين، وابعت الشريط ده لـ Claude. '+(window.__err?'(الخطأ: '+window.__err+') ':'')+'(Chrome '+(v||'مش معروف')+')';
     document.body.insertBefore(d,document.body.firstChild);
   }
-},4000);
+},15000);
 </script>
 </head>
 <body>
