@@ -614,9 +614,12 @@
 
   /* ---------- بداية ---------- */
   function startLocal(){
-    mode = 'local'; lsLoad(); secLoad(); audLoad(); render();
     /* على رابط منشور التطبيق دايما سحابي، حتى لو fb.js اتحجب أو اتشال */
     if(!window.CLOUD_ON && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.CLOUD_ON = true;
+    /* السحابي: البيانات بتيجي من السيرفر بعد التحقق من الاشتراك. الوضع المحلي: من الجهاز */
+    mode = window.CLOUD_ON ? 'pending' : 'local';
+    if(!window.CLOUD_ON) lsLoad();
+    secLoad(); audLoad(); render();
     if(window.CLOUD_ON){ cloudStart(); } else { licenseStart(); gate(); }
   }
   function startDb(c){

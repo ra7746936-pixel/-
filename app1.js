@@ -62,7 +62,7 @@
     return chain;
   }
   function persist(dbFn){
-    if(mode==='db') enqueue(dbFn); else lsSave();
+    if(mode==='db' || mode==='cloud') enqueue(dbFn); else if(mode==='local') lsSave();
     render();
   }
   function ready(){
@@ -82,7 +82,13 @@
   function recordSale(sale,updated){
     updated.forEach(function(p){ products.set(p.id,p); });
     sales.unshift(sale);
+    var cloud = (mode==='cloud');
     persist(function(){
+      if(cloud){
+        /* في السحابة المخزون بيتعدّل بالنقص مش بقيمة جديدة، عشان جهازين يبيعوا مع بعض والكمية تطلع صح */
+        sale.lines.forEach(function(l){ db.inc('products/'+l.pid,{qty:-l.qty,sold:l.qty,revenue:round(l.qty*l.price)}); });
+        return db.doc('sales/'+sale.id).set(sale);
+      }
       var ch = Promise.resolve();
       updated.forEach(function(u){ ch = ch.then(function(){ return db.doc('products/'+u.id).set(u); }); });
       return ch.then(function(){ return db.doc('sales/'+sale.id).set(sale); });
@@ -118,11 +124,16 @@
   }
 
   /* ---------- رسم ---------- */
-  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); renderMine(); renderSec(); renderRoleUI(); }
+  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); renderMine(); renderSec(); renderRoleUI(); if(typeof renderCloudInfo==='function') renderCloudInfo(); }
 
   function renderStatus(){
     var el = $('#sync');
     if(mode==='db'){ el.textContent='محفوظ ومتزامن'; el.className='chip db'; }
+    else if(mode==='cloud'){
+      var on = (navigator.onLine!==false);
+      el.textContent = on ? 'متزامن مع السحابة' : 'أوفلاين: هيتزامن لما النت يرجع';
+      el.className = on ? 'chip db' : 'chip local';
+    }
     else if(mode==='local'){ el.textContent='محفوظ على الجهاز ده بس'; el.className='chip local'; }
     else { el.textContent='بيحمّل…'; el.className='chip'; }
   }

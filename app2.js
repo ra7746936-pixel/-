@@ -415,9 +415,25 @@
     });
     if(bad){ toast('المتاح من '+bad.name+' '+fmt(bad.qty)+' بس',true); return; }
     if(!lines.length) return;
-    var sale = {id:uid(),no:++invSeq,ts:Date.now(),lines:lines,total:round(total)};
+    var sale = {id:uid(),ts:Date.now(),lines:lines,total:round(total)};
     if(sess) sale.by = {id:sess.id,name:sess.name};
     cart = {};
+    if(mode==='cloud'){
+      /* رقم الفاتورة من عدّاد المحل كله. لو مفيش نت بنكمل برقم مؤقت من أكبر رقم الجهاز شايفه */
+      var floor = invSeq;
+      sales.forEach(function(s){ if(s.no>floor) floor = s.no; });
+      render();
+      var fin = function(no){
+        sale.no = no; if(no>invSeq) invSeq = no;
+        lastSaleId = sale.id;
+        recordSale(sale,updated);
+        toast('تم البيع: '+money(total));
+        focusQ();
+      };
+      db.nextNo(floor).then(fin,function(){ fin(floor+1); });
+      return;
+    }
+    sale.no = ++invSeq;
     lastSaleId = sale.id;
     recordSale(sale,updated);
     toast('تم البيع: '+money(total));
@@ -448,7 +464,8 @@
   var pad2 = function(n){ n = String(n); return n.length<2 ? '0'+n : n; };
 
   function renderBackup(){
-    $('#backup').hidden = (mode!=='local' || !isOwner());
+    $('#backup').hidden = ((mode!=='local' && mode!=='cloud') || !isOwner());
+    $('#b-import').hidden = (mode==='cloud');
     var last = null;
     try{ last = localStorage.getItem(BK_KEY); }catch(e){}
     $('#b-last').textContent = last

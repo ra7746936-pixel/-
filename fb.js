@@ -37,7 +37,12 @@
     /* جلسة دخول مستقلة لكل صفحة: الأدمن بيحط FB_APP_NAME عشان ميتشاركش الجلسة مع التطبيق */
     var app = window.FB_APP_NAME ? A.initializeApp(CFG,window.FB_APP_NAME) : A.initializeApp(CFG);
     var auth = Au.getAuth(app);
-    var fs = F.getFirestore(app);
+    var fs;
+    try{
+      /* كاش دائم على الجهاز: الكاشير يكمل أوفلاين والبيانات تتزامن لما النت يرجع */
+      fs = F.initializeFirestore(app,{localCache:F.persistentLocalCache({tabManager:F.persistentMultipleTabManager()})});
+    }catch(e){ fs = F.getFirestore(app); }
+    function onErr(e){ try{ if(window.FB_ONERR) window.FB_ONERR(e); }catch(x){} }
     window.FB = {
       onUser: function(cb){ return Au.onAuthStateChanged(auth,cb); },
       user: function(){ return auth.currentUser; },
@@ -63,6 +68,46 @@
         });
       },
       newId: function(path){ return F.doc(F.collection(fs,path)).id; },
+      /* واجهة بيانات محل واحد: shops/{shopId}/... الكتابة بتتحط في طابور الجهاز وبتتبعت لما النت يكون موجود */
+      shopDb: function(shopId){
+        var root = 'shops/'+shopId+'/';
+        return {
+          collection: function(name){
+            var q = F.collection(fs,root+name), api = {
+              orderBy: function(f,d){ q = F.query(q,F.orderBy(f,d)); return api; },
+              limit: function(n){ q = F.query(q,F.limit(n)); return api; },
+              onSnapshot: function(ok,err){ return F.onSnapshot(q,ok,err); }
+            };
+            return api;
+          },
+          doc: function(path){
+            var ref = F.doc(fs,root+path);
+            return {
+              set: function(d){ F.setDoc(ref,d).catch(onErr); return Promise.resolve(); },
+              delete: function(){ F.deleteDoc(ref).catch(onErr); return Promise.resolve(); }
+            };
+          },
+          /* زيادة أو نقص رقم من غير ما نكتب فوق تعديل جهاز تاني */
+          inc: function(path,deltas){
+            var o = {};
+            Object.keys(deltas).forEach(function(k){ o[k] = F.increment(deltas[k]); });
+            F.updateDoc(F.doc(fs,root+path),o).catch(onErr);
+            return Promise.resolve();
+          },
+          /* رقم فاتورة متسلسل للمحل كله (محتاج نت). floor = أكبر رقم الجهاز شايفه */
+          nextNo: function(floor){
+            var ref = F.doc(fs,root+'meta/counter');
+            var tx = F.runTransaction(fs,function(t){
+              return t.get(ref).then(function(s){
+                var n = Math.max(s.exists() ? (+s.data().seq||0) : 0, +floor||0) + 1;
+                t.set(ref,{seq:n});
+                return n;
+              });
+            });
+            return Promise.race([tx,new Promise(function(_,rej){ setTimeout(function(){ rej({code:'timeout'}); },4000); })]);
+          }
+        };
+      },
       /* إنشاء حساب لعميل من غير ما يتسجّل خروج الأدمن (تطبيق تاني جوه نفس الصفحة) */
       createUser: function(email,pass){
         var sec;

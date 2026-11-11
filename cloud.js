@@ -43,6 +43,7 @@ function cloudDecide(c,fromCache){
   if(!c.exp || now > c.exp){ cloudShow('blocked','انتهى الاشتراك','الاشتراك انتهى يوم '+(c.exp ? cloudDate(c.exp) : '—')+'. بعد ما تجدد اضغط تحقق تاني.'); return; }
   if(fromCache && now - c.checked > CLOUD_STALE_MS){ cloudShow('offline','لازم تتصل بالنت','الجهاز مش اتصل بالإنترنت بقاله أكتر من 7 أيام. وصّله بالنت وبعدين اضغط تحقق تاني.'); return; }
   try{ if(now>seen) localStorage.setItem(SEEN_KEY,String(now)); }catch(e){}
+  if(cloudDataStart(c.shopId)===false) return;
   if(locked){ $('#cloud').hidden = true; hideLock(); }
   updateNote(Math.ceil((c.exp-now)/86400000));
   renderCloudInfo();
@@ -101,7 +102,89 @@ function cloudReauth(pw){
   if(!window.FB || !FB.reauth) return Promise.reject({code:'auth/network-request-failed'});
   return FB.reauth(pw);
 }
+/* ---------- بيانات المحل في السحابة ---------- */
+var cloudStarted = false, cloudGot = {p:false,s:false,u:false}, MIG_KEY = 'makhzani-migrated', cloudErrAt = 0;
+function cloudDataStart(shopId){
+  if(cloudStarted) return true;
+  if(!window.FB || !FB.shopDb){
+    cloudShow('offline','لازم نت','بيانات المحل في السحابة. وصّل الجهاز بالنت وجرّب تاني.');
+    return false;
+  }
+  cloudStarted = true;
+  db = FB.shopDb(shopId);
+  mode = 'pending';
+  products = new Map(); sales = []; suppliers = new Map();
+  var fail = function(err){ toast('مشكلة في المزامنة: '+((err && (err.code || err.message)) || ''),true); };
+  var got = function(k){
+    cloudGot[k] = true;
+    if(cloudGot.p && cloudGot.s && cloudGot.u && mode==='pending'){ mode = 'cloud'; render(); gate(); }
+    else render();
+  };
+  db.collection('products').onSnapshot(function(snap){
+    var m = new Map();
+    snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
+    products = m; got('p');
+  },fail);
+  db.collection('sales').orderBy('ts','desc').limit(1000).onSnapshot(function(snap){
+    sales = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); });
+    var mx = invSeq; sales.forEach(function(s){ if(s.no>mx) mx = s.no; }); invSeq = mx;
+    got('s');
+  },fail);
+  db.collection('suppliers').onSnapshot(function(snap){
+    var m = new Map();
+    snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
+    suppliers = m; got('u');
+  },fail);
+  /* أخطاء الكتابة (اشتراك منتهي، صنف اتمسح…) تظهر للمستخدم */
+  window.FB_ONERR = function(e){
+    var now = Date.now(); if(now-cloudErrAt<4000) return; cloudErrAt = now;
+    var c = (e && e.code) || '';
+    toast(c==='permission-denied' ? 'الحفظ اترفض: الاشتراك منتهي أو موقوف.' : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||'؟')+')',true);
+  };
+  return true;
+}
+function cloudLocalData(){
+  try{
+    var raw = localStorage.getItem('makhzani-v1'); if(!raw) return null;
+    var d = JSON.parse(raw);
+    var r = {products:d.products||[],sales:d.sales||[],suppliers:d.suppliers||[],seq:+d.seq||0};
+    return (r.products.length || r.sales.length || r.suppliers.length) ? r : null;
+  }catch(e){ return null; }
+}
+function cloudMigrate(){
+  if(!isOwner() || mode!=='cloud' || !cloudInfo) return;
+  var loc = cloudLocalData();
+  if(!loc) return;
+  if(products.size || sales.length || suppliers.size){ toast('السحابة فيها بيانات بالفعل. مينفعش ننقل فوقها.',true); return; }
+  if(!window.confirm('تنقل '+loc.products.length+' صنف و '+loc.sales.length+' فاتورة و '+loc.suppliers.length+' مورد من الجهاز ده للسحابة؟ بيانات الجهاز هتفضل عندك كنسخة.')) return;
+  var mx = loc.seq;
+  loc.sales.forEach(function(s){ if(s.no>mx) mx = s.no; });
+  loc.sales.filter(function(s){ return !(s.no>0); }).sort(function(a,b){ return a.ts-b.ts; }).forEach(function(s){ s.no = ++mx; });
+  loc.products.forEach(function(p){ db.doc('products/'+p.id).set(p); });
+  loc.sales.forEach(function(s){ db.doc('sales/'+s.id).set(s); });
+  loc.suppliers.forEach(function(s){ db.doc('suppliers/'+s.id).set(s); });
+  db.doc('meta/counter').set({seq:mx});
+  try{ localStorage.setItem(MIG_KEY,cloudInfo.shopId); }catch(e){}
+  logA('cfg','نقل بيانات الجهاز للسحابة: '+loc.products.length+' صنف و '+loc.sales.length+' فاتورة و '+loc.suppliers.length+' مورد');
+  toast('اتنقلت البيانات للسحابة');
+  render();
+}
+function renderCloudMigrate(){
+  var m = $('#cloud-migrate');
+  if(!m) return;
+  var loc = null;
+  if(window.CLOUD_ON && mode==='cloud' && cloudInfo && isOwner()){
+    var done = null; try{ done = localStorage.getItem(MIG_KEY); }catch(e){}
+    if(done!==cloudInfo.shopId) loc = cloudLocalData();
+  }
+  if(!loc){ m.hidden = true; return; }
+  var empty = !(products.size || sales.length || suppliers.size);
+  $('#cd-mig-txt').textContent = 'في بيانات قديمة على الجهاز ده: '+loc.products.length+' صنف و '+loc.sales.length+' فاتورة و '+loc.suppliers.length+' مورد. '+(empty ? 'تنقلها للسحابة عشان كل الأجهزة تشوفها؟' : 'السحابة فيها بيانات بالفعل، فمينفعش ننقل فوقها.');
+  $('#cd-migrate').hidden = !empty;
+  m.hidden = false;
+}
 function renderCloudInfo(){
+  renderCloudMigrate();
   var box = $('#cloud-info');
   if(!box) return;
   if(!window.CLOUD_ON || !cloudInfo){ box.hidden = true; return; }
@@ -132,10 +215,13 @@ $('#cd-retry').addEventListener('click',function(){
 });
 $('#cd-out').addEventListener('click',function(){
   try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
-  if(window.FB) FB.signOut();
+  if(window.FB) FB.signOut().then(function(){ if(cloudStarted) location.reload(); });
 });
+$('#cd-migrate').addEventListener('click',cloudMigrate);
+window.addEventListener('online',function(){ if(typeof renderStatus==='function') renderStatus(); });
+window.addEventListener('offline',function(){ if(typeof renderStatus==='function') renderStatus(); });
 $('#cd-logout2').addEventListener('click',function(){
   if(!window.confirm('تسجّل خروج من حساب المحل؟ هتحتاج الإيميل والباسورد ونت عشان تدخل تاني.')) return;
   try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
-  if(window.FB) FB.signOut();
+  if(window.FB) FB.signOut().then(function(){ if(cloudStarted) location.reload(); });
 });

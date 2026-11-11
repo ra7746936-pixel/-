@@ -239,3 +239,6 @@ html.authing #app{display:none}
 .recent li.aud.sens .what{font-weight:600}
 #cnt-body input{width:84px;min-height:36px;padding:4px;text-align:center}
 @media (max-width:420px){.tab{font-size:13px;padding:10px 2px}}
+
+#cd-form{display:flex;flex-direction:column;gap:12px}
+#cd-form[hidden]{display:none}

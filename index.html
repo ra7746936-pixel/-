@@ -9,7 +9,7 @@
 <script>
 /* ===== إعدادات الترخيص: للنسخة اللي بتبعتها للعملاء بس ===== */
 var LICENSE_PUBLIC_KEY = '';
-var CONTACT_TEXT = 'للتفعيل أو التجديد كلّم: 01098';
+var CONTACT_TEXT = 'للتفعيل أو التجديد كلّم: 01xxxxxxxxx';
 if(LICENSE_PUBLIC_KEY){ document.documentElement.className += ' locked'; }
 document.documentElement.className += ' authing';
 </script>
@@ -333,6 +333,11 @@ setTimeout(function(){
     </section>
 
     <section id="v-sec" aria-labelledby="t-sec" hidden>
+      <div class="panel" id="cloud-migrate" hidden>
+        <h2>نقل بيانات الجهاز للسحابة</h2>
+        <p class="hint" id="cd-mig-txt"></p>
+        <div class="row-actions"><button class="btn primary" id="cd-migrate" type="button">انقل البيانات للسحابة</button></div>
+      </div>
       <div class="panel" id="cloud-info" hidden>
         <h2>حساب المحل والاشتراك</h2>
         <p class="hint" id="cd-info"></p>
@@ -421,7 +426,6 @@ setTimeout(function(){
       <input id="cd-email" type="email" autocomplete="username" dir="ltr">
       <label for="cd-pass">الباسورد</label>
       <input id="cd-pass" type="password" autocomplete="current-password" dir="ltr">
-      <br>
       <button class="btn primary big" id="cd-go" type="button">دخول</button>
       <button class="btn ghost" id="cd-forgot" type="button">نسيت الباسورد</button>
     </div>
