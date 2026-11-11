@@ -49,6 +49,13 @@
   function entryBody(e){ return e.n+'|'+e.ts+'|'+e.who+'|'+e.role+'|'+e.act+'|'+e.txt+'|'+(e.x==null ? '' : JSON.stringify(e.x)); }
   function logA(act,txt,x){
     if(mode==='db') return;
+    /* في وضع السحابة: السجل بيتكتب على السيرفر ويظهر على كل الأجهزة، ومينفعش يتعدّل ولا يتمسح */
+    if(mode==='cloud' && db){
+      var ce = {ts:Date.now(),who:sess ? sess.name : '—',role:sess ? sess.role : '',act:act,txt:txt};
+      if(x!=null) ce.x = x;
+      db.doc('audit/'+ce.ts+'-'+Math.random().toString(36).slice(2,8)).set(ce);
+      return;
+    }
     var last = aud.length ? aud[aud.length-1] : null;
     var prev = last ? last.h : audBase;
     var e = {n:(last ? last.n : audBaseN)+1,ts:Date.now(),who:sess ? sess.name : '—',role:sess ? sess.role : '',act:act,txt:txt};
@@ -466,6 +473,10 @@
       case 'wa-send': if(isOwner()) sendWA(); break;
       case 'aud-verify': {
         if(!isOwner()) return;
+        if(mode==='cloud'){
+          $('#aud-state').textContent = 'السجل محفوظ على السيرفر: '+aud.length+' عملية، ومفيش حد (ولا حتى انت) يقدر يعدّل أو يمسح منها.';
+          $('#aud-state').className = 'hint'; break;
+        }
         var bad = audVerify();
         $('#aud-state').textContent = bad<0 ? 'السجل سليم: '+aud.length+' عملية متسلسلة ومفيش تلاعب.' : 'تحذير: السجل اتغيّر أو اتمسح منه جزء عند العملية رقم '+aud[bad].n+'.';
         $('#aud-state').className = 'hint '+(bad<0 ? '' : 'lock-err');

@@ -135,6 +135,13 @@ function cloudDataStart(shopId){
     snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
     suppliers = m; cloudMeta('u',snap); got('u');
   },fail);
+  /* سجل الأمان: على السيرفر، بيظهر على كل الأجهزة */
+  db.collection('audit').orderBy('ts','desc').limit(2000).onSnapshot(function(snap){
+    var list = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); }).reverse();
+    list.forEach(function(e,i){ e.n = i+1; });
+    aud = list; cloudMeta('a',snap); cloudAuditMigrate(shopId);
+    render();
+  },fail);
   /* أخطاء الكتابة (اشتراك منتهي، صنف اتمسح…) تظهر للمستخدم */
   window.FB_ONERR = function(e){
     var now = Date.now(); if(now-cloudErrAt<4000) return; cloudErrAt = now;
@@ -142,6 +149,23 @@ function cloudDataStart(shopId){
     toast(c==='permission-denied' ? 'الحفظ اترفض: الاشتراك منتهي أو موقوف.' : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||(e&&e.message)||'؟')+')',true);
   };
   return true;
+}
+/* مرة واحدة: سجل الأمان القديم المحفوظ على الجهاز بيترفع للسحابة (بنفس المعرّفات فمفيش تكرار) */
+var cloudAudDone = false;
+function cloudAuditMigrate(shopId){
+  if(cloudAudDone) return; cloudAudDone = true;
+  try{
+    var flag = 'makhzani-aud-migrated', key = localStorage.getItem(flag);
+    if(key===shopId) return;
+    var r = localStorage.getItem('makhzani-audit'), o = r ? JSON.parse(r) : null, list = (o && o.list) || [];
+    list.forEach(function(e){
+      var c = {ts:e.ts,who:e.who,role:e.role||'',act:e.act,txt:e.txt};
+      if(e.x!=null) c.x = e.x;
+      c.old = true;
+      db.doc('audit/'+e.ts+'-L'+e.n).set(c);
+    });
+    localStorage.setItem(flag,shopId);
+  }catch(x){}
 }
 function cloudLocalData(){
   try{
