@@ -23,7 +23,7 @@
   }
   function hh(str){ return h53(str,1)+h53(str,2); }
 
-  function invCode(s){ return s.no>0 ? '#'+s.no : String(s.id).slice(-5).toUpperCase(); }
+  function invCode(s){ return s.no>0 ? '#'+s.no : (s.pn ? 'قيد الترقيم' : String(s.id).slice(-5).toUpperCase()); }
   function linesText(ls){ return ls.map(function(l){ return l.name+' ×'+fmt(l.qty)+' بـ '+fmt(l.price); }).join('، '); }
   function todayStart(){ var d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 

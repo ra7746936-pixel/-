@@ -1,4 +1,4 @@
-window.APP_VER = 'v7';
+window.APP_VER = 'v8';
 /* مخزني — حساب المحل والاشتراك من السحابة (المرحلة 1).
    الدخول بإيميل وباسورد مرة واحدة على الجهاز، والاشتراك بيتقرا من السيرفر ويتجدد من لوحة الإدارة. */
 var CLOUD_KEY = 'makhzani-cloud';
@@ -221,10 +221,15 @@ function cloudNumberPending(){
       sales.forEach(function(x){ if(x.id===s.id){ x.no = n; x.pn = false; } });
       if(n>invSeq) invSeq = n;
       render(); next();
-    },function(){ cloudNumBusy = false; });
+    },function(e){
+      cloudNumBusy = false;
+      var c = (e && (e.code||e.message)) || '?';
+      if(window.cloudNumErr!==c){ window.cloudNumErr = c; toast('ترقيم الفاتورة واقف ('+c+'). هحاول تاني لوحدي.',true); }
+    });
   })();
 }
 window.addEventListener('online',function(){ setTimeout(cloudNumberPending,800); });
+setInterval(function(){ cloudNumberPending(); },15000);
 /* الفواتير والسجل بيتحمّلوا لآخر فترة بس عشان نوفّر قراءات. النسخة الاحتياطية بتجيب كله من السيرفر. */
 var CLOUD_DAYS = 45;
 function cloudAll(cb){
@@ -362,6 +367,6 @@ window.addEventListener('fb-pend',function(){ if(typeof renderStatus==='function
 /* تشغيل بدون نت: خدمة التخزين على الجهاز (بتشتغل على https بس) */
 try{
   if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
-    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=7').catch(function(){}); });
+    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=8').catch(function(){}); });
   }
 }catch(e){}

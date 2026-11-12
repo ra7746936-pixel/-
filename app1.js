@@ -147,7 +147,22 @@
   }
 
   /* ---------- رسم ---------- */
-  function render(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); renderMine(); renderSec(); renderRoleUI(); if(typeof renderCloudInfo==='function') renderCloudInfo(); }
+  /* لو تحديث جه من جهاز تاني وانت بتكتب كمية توريد، نحافظ على اللي كتبته ومكان المؤشر */
+  function keepInputs(fn){
+    var saved = {}, act = document.activeElement, actKey = null, s0 = 0, s1 = 0;
+    document.querySelectorAll('form.restock input').forEach(function(i){
+      var k = i.form.dataset.id+'|'+i.name; if(i.value) saved[k] = i.value;
+      if(i===act){ actKey = k; try{ s0 = i.selectionStart; s1 = i.selectionEnd; }catch(e){} }
+    });
+    fn();
+    document.querySelectorAll('form.restock input').forEach(function(i){
+      var k = i.form.dataset.id+'|'+i.name;
+      if(saved[k]!=null && !i.value) i.value = saved[k];
+      if(k===actKey){ i.focus(); try{ i.setSelectionRange(s0,s1); }catch(e){} }
+    });
+  }
+  function render(){ keepInputs(renderAll); }
+  function renderAll(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); renderMine(); renderSec(); renderRoleUI(); if(typeof renderCloudInfo==='function') renderCloudInfo(); }
 
   function renderStatus(){
     var el = $('#sync');

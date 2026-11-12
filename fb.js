@@ -136,7 +136,7 @@
                 return n;
               });
             });
-            return Promise.race([tx,new Promise(function(_,rej){ setTimeout(function(){ rej({code:'timeout'}); },4000); })]);
+            return Promise.race([tx,new Promise(function(_,rej){ setTimeout(function(){ rej({code:'timeout'}); },12000); })]);
           }
         };
       },

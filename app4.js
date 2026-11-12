@@ -233,6 +233,7 @@
     var p = products.get(f.dataset.id), n = parseFloat(f.elements.n.value);
     if(!p || !(n>0)){ toast('اكتب كمية التوريد',true); return; }
     logA('restock','توريد +'+fmt(n)+' لـ '+p.name+' (من '+fmt(p.qty)+' إلى '+fmt(round(p.qty+n))+')');
+    f.elements.n.value = '';
     putProduct(Object.assign({},p,{qty:round(p.qty+n)}));
     toast('اتزوّد '+fmt(n)+' من '+p.name);
   });
