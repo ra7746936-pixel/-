@@ -249,3 +249,8 @@ html.authing #app{display:none}
 .bk-warn{margin:10px 0 0;padding:10px 14px;border-radius:12px;background:#fff4d6;color:#6b4a00;border:1px solid #f0d58a;font-size:.92rem;line-height:1.6}
 @media (prefers-color-scheme: dark){ .bk-warn{background:#3a2f0e;color:#f3d98b;border-color:#6b5517} }
 .bk-warn[hidden]{display:none}
+
+#plist li{display:flex;flex-direction:column;gap:4px}
+.pcar{margin:0 8px 6px;padding:8px 12px;border:1px dashed var(--accent);border-radius:10px;background:transparent;color:var(--ink);font-family:var(--font-body);font-size:14px;cursor:pointer}
+.pcar:not(:disabled):hover{background:var(--surface2)}
+.pcar:disabled{opacity:.45;cursor:not-allowed}

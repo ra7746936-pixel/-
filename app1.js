@@ -62,8 +62,14 @@
     return chain;
   }
   function persist(dbFn){
-    if(mode==='db' || mode==='cloud') enqueue(dbFn); else if(mode==='local') lsSave();
+    if(mode==='db' || mode==='cloud') enqueue(dbFn); else if(mode==='local'){ if(renderHold) lsDirty = true; else lsSave(); }
     render();
+  }
+  /* أثناء الاستيراد الكبير: نأجّل الرسم والحفظ المحلي لحد ما يخلص (بدل ما نعيدهم مع كل صنف) */
+  var renderHold = false, renderLate = false, lsDirty = false;
+  function holdRender(on){
+    renderHold = !!on;
+    if(!on){ if(lsDirty){ lsDirty = false; lsSave(); } if(renderLate){ renderLate = false; render(); } }
   }
   function ready(){
     if(locked){ toast('التطبيق مقفول. فعّله الأول.',true); return false; }
@@ -161,7 +167,7 @@
       if(k===actKey){ i.focus(); try{ i.setSelectionRange(s0,s1); }catch(e){} }
     });
   }
-  function render(){ keepInputs(renderAll); }
+  function render(){ if(renderHold){ renderLate = true; return; } keepInputs(renderAll); }
   function renderAll(){ renderStatus(); renderTabs(); renderSell(); renderStock(); renderSup(); renderReport(); renderInvEdit(); renderBackup(); renderMine(); renderSec(); renderRoleUI(); if(typeof renderCloudInfo==='function') renderCloudInfo(); }
 
   function renderStatus(){
@@ -205,14 +211,14 @@
       return '<li><button type="button" class="prow" data-act="add" data-id="'+esc(p.id)+'"'+(p.qty<=0?' disabled':'')+'>'+
         '<span class="pname">'+esc(p.name)+'</span>'+
         '<span class="pmeta">'+money(p.price)+' · '+(p.qty<=0?'خلص':'فاضل '+fmt(p.qty))+'</span>'+
-        '<span class="padd" aria-hidden="true">+</span></button></li>';
+        '<span class="padd" aria-hidden="true">+</span></button>'+(p.pack>1 && p.qty>0 ? '<button type="button" class="pcar" data-act="addc" data-id="'+esc(p.id)+'"'+(p.qty<p.pack?' disabled':'')+'>+ كرتونة ('+fmt(p.pack)+' قطعة) · '+money(round(p.pack*p.price))+'</button>' : '')+'</li>';
     }).join('') : '<li class="note">'+(products.size ? 'مفيش صنف بالاسم ده.' : 'لسه مفيش أصناف. افتح «المخزن» وضيف أول صنف.')+'</li>';
 
     cleanCart();
     var ids = Object.keys(cart), total = 0;
     $('#cart').innerHTML = ids.length ? ids.map(function(id){
       var p = products.get(id), q2 = cart[id], sub = q2*p.price; total += sub;
-      return '<li class="cline"><div class="cl-name">'+esc(p.name)+'<small>'+fmt(p.price)+' × '+fmt(q2)+' = '+money(sub)+'</small></div>'+
+      return '<li class="cline"><div class="cl-name">'+esc(p.name)+'<small>'+fmt(p.price)+' × '+fmt(q2)+' = '+money(sub)+(p.pack>1 && q2>=p.pack ? ' ('+fmt(Math.floor(q2/p.pack))+' كرتونة'+(round(q2%p.pack)>0 ? ' و '+fmt(round(q2%p.pack))+' قطعة' : '')+')' : '')+'</small></div>'+
         '<div class="step"><button type="button" data-act="dec" data-id="'+esc(id)+'" aria-label="نقّص">−</button>'+
         '<input type="number" inputmode="decimal" min="0" step="any" value="'+q2+'" data-qty="'+esc(id)+'" aria-label="الكمية">'+
         '<button type="button" data-act="inc" data-id="'+esc(id)+'" aria-label="زوّد">+</button></div>'+
@@ -242,12 +248,12 @@
     }
     box.innerHTML = list.map(function(p){
       var del = pendingDel===p.id;
-      return '<li class="item"><div class="item-head"><strong>'+esc(p.name)+'</strong>'+statusOf(p)+'</div>'+(p.cost!=null && isOwner()?'<div class="pmeta">سعر الجملة: '+money(p.cost)+'</div>':'')+(p.barcode?'<div class="pmeta">باركود: '+esc(p.barcode)+'</div>':'')+
+      return '<li class="item"><div class="item-head"><strong>'+esc(p.name)+'</strong>'+statusOf(p)+'</div>'+(p.cost!=null && isOwner()?'<div class="pmeta">سعر الجملة: '+money(p.cost)+'</div>':'')+(p.barcode?'<div class="pmeta">باركود: '+esc(p.barcode)+'</div>':'')+(p.pack>1?'<div class="pmeta">الكرتونة: '+fmt(p.pack)+' قطعة'+(p.qty>=p.pack?' · فاضل ≈ '+fmt(Math.floor(p.qty/p.pack))+' كرتونة و '+fmt(round(p.qty%p.pack))+' قطعة':'')+'</div>':'')+
         '<dl class="stats"><div><dt>السعر</dt><dd>'+money(p.price)+'</dd></div>'+
         '<div><dt>اتباع</dt><dd>'+fmt(p.sold)+'</dd></div>'+
         '<div><dt>فاضل</dt><dd>'+fmt(p.qty)+'</dd></div></dl>'+
         '<div class="item-actions">'+
-        '<form class="restock" data-id="'+esc(p.id)+'"><input name="n" type="number" inputmode="decimal" min="0" step="any" placeholder="كمية جديدة" aria-label="كمية التوريد لـ '+esc(p.name)+'"><button class="btn" type="submit">+ توريد</button></form>'+
+        '<form class="restock" data-id="'+esc(p.id)+'"><input name="n" type="number" inputmode="decimal" min="0" step="any" placeholder="'+(p.pack>1?'عدد':'كمية جديدة')+'" aria-label="كمية التوريد لـ '+esc(p.name)+'">'+(p.pack>1?'<select name="u" aria-label="الوحدة"><option value="c">كرتونة</option><option value="p">قطعة</option></select>':'')+'<button class="btn" type="submit">+ توريد</button></form>'+
         '<button type="button" class="btn" data-act="edit" data-id="'+esc(p.id)+'">تعديل</button>'+
         '<button type="button" class="btn danger" data-act="del" data-id="'+esc(p.id)+'">'+(del?'متأكد؟ اضغط تاني':'حذف')+'</button>'+
         '</div></li>';

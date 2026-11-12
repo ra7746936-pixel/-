@@ -451,6 +451,7 @@
     $('#f-submit').textContent = 'إضافة للمخزن';
     $('#f-qty-label').textContent = 'الكمية';
     $('#f-cancel').hidden = true;
+    $('#f-ctn-wrap').hidden = false;
   }
 
   function seedExamples(){
@@ -469,6 +470,7 @@
   function renderBackup(){
     $('#backup').hidden = ((mode!=='local' && mode!=='cloud') || !isOwner());
     $('#b-import').hidden = false;
+    var ip = $('#imp-panel'); if(ip) ip.hidden = !((mode==='local' || mode==='cloud') && isOwner());
     var last = null;
     try{ last = localStorage.getItem(BK_KEY); }catch(e){}
     var cl = (typeof cloudLastBackup!=='undefined') ? cloudLastBackup : 0;
@@ -487,8 +489,16 @@
 
   function withAll(cb){ if(typeof cloudAll==='function') cloudAll(cb); else cb(sales,aud); }
   function exportBackup(){ withAll(doExportBackup); }
+  function buildBackup(S,A){ return {app:'makhzani',version:1,exportedAt:Date.now(),products:Array.from(products.values()),sales:S,suppliers:Array.from(suppliers.values()),seq:invSeq,audit:A}; }
+  /* بتستخدمها خاصية الرفع على Drive (cloud.js) */
+  window.mkBackupData = function(cb){ withAll(function(S,A){ cb(buildBackup(S,A)); }); };
+  window.mkBackupDone = function(where){
+    try{ localStorage.setItem(BK_KEY,String(Date.now())); }catch(e){}
+    if(typeof cloudMarkBackup==='function') cloudMarkBackup();
+    renderBackup(); logA('backup','رفع نسخة احتياطية على '+where);
+  };
   function doExportBackup(S,A){
-    var data = {app:'makhzani',version:1,exportedAt:Date.now(),products:Array.from(products.values()),sales:S,suppliers:Array.from(suppliers.values()),seq:invSeq,audit:A};
+    var data = buildBackup(S,A);
     var blob = new Blob([JSON.stringify(data)],{type:'application/json'});
     var url = URL.createObjectURL(blob);
     var d = new Date();
@@ -510,7 +520,7 @@
     var ps = [], ss = [];
     d.products.forEach(function(p){
       if(p && p.id && typeof p.name==='string' && p.name){
-        ps.push({id:String(p.id),name:p.name,price:num(p.price,0),qty:num(p.qty,0),barcode:String(p.barcode||''),sold:num(p.sold,0),revenue:num(p.revenue,0),cost:((p.cost==null||!isFinite(+p.cost))?null:+p.cost),created:num(p.created,Date.now())});
+        ps.push({id:String(p.id),name:p.name,price:num(p.price,0),qty:num(p.qty,0),barcode:String(p.barcode||''),pack:(+p.pack>1?Math.floor(+p.pack):0),sold:num(p.sold,0),revenue:num(p.revenue,0),cost:((p.cost==null||!isFinite(+p.cost))?null:+p.cost),created:num(p.created,Date.now())});
       }
     });
     d.sales.forEach(function(s){

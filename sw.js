@@ -1,5 +1,5 @@
 /* مخزني: خدمة التشغيل بدون نت. الملفات بتتحمّل من النت لو موجود، ولو مفيش بتتفتح من النسخة المحفوظة على الجهاز. */
-var VER = 'mk-v8';
+var VER = 'mk-v9';
 self.addEventListener('install',function(e){ self.skipWaiting(); });
 self.addEventListener('activate',function(e){
   e.waitUntil(caches.keys().then(function(ks){

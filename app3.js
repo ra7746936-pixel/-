@@ -43,7 +43,7 @@
   /* وضع السحابة: الـ PIN والكاشيرين بيتحفظوا على السيرفر وبيظهروا على كل أجهزة المحل */
   function secPush(){ if(db && sec) db.doc('meta/sec').set({data:JSON.stringify(sec),ts:Date.now()}); }
   function secApply(o){ sec = o; secNorm(); secLocal(); }
-  function secSave(){ secLocal(); if(mode==='cloud') secPush(); }
+  function secSave(){ if(sess && sess.server) return; secLocal(); if(mode==='cloud') secPush(); }
   function audLoad(){
     try{
       var r = localStorage.getItem(AUD_KEY), o = r ? JSON.parse(r) : null;
@@ -132,6 +132,7 @@
     return sess.role==='owner';
   }
   function needApproval(kind){
+    if(sess && sess.server) return true;
     if(!sess || sess.role==='owner' || !sec) return false;
     return !!(kind==='inv' ? sec.cfg.pinInv : sec.cfg.pinStock);
   }
@@ -150,6 +151,8 @@
     render(); focusQ();
   }
   function logout(reason){
+    /* كاشير بحساب على السيرفر: الخروج بيطلّعه من الحساب، والقفل التلقائي مبيعملش حاجة */
+    if(sess && sess.server){ if(reason==='قفل يدوي' && typeof cloudSignOut==='function') cloudSignOut(); return; }
     if(sess) logA('logout',reason || 'قفل');
     sess = null; secShown = false; countDraft = null;
     editSale = null; draft = []; editEnt = null; selSup = null; view = 'sell';
@@ -161,6 +164,7 @@
     var pc = $('#f-cost').parentNode; if(pc) pc.hidden = !own;
     $('#who').textContent = sess ? 'المستخدم: '+sess.name : '';
     $('#lock-now').hidden = !sess || mode==='db';
+    $('#lock-now').textContent = (sess && sess.server) ? 'خروج' : 'قفل';
   }
 
   /* ---------- شاشة الدخول ---------- */
@@ -192,7 +196,7 @@
     } else {
       $('#au-title').textContent = 'تسجيل الدخول';
       $('#au-msg').textContent = 'اختار حسابك واكتب الـ PIN.';
-      var opts = '<option value="owner">المالك</option>'+sec.users.map(function(u){ return '<option value="'+esc(u.id)+'">'+esc(u.name)+'</option>'; }).join('');
+      var opts = '<option value="owner">المالك</option>'+(window.CLOUD_ON ? [] : sec.users).map(function(u){ return '<option value="'+esc(u.id)+'">'+esc(u.name)+'</option>'; }).join('');
       $('#au-user').innerHTML = opts;
       try{ var lu = localStorage.getItem('makhzani-lastuser'); if(lu){ $('#au-user').value = lu; if($('#au-user').value!==lu) $('#au-user').value = 'owner'; } }catch(e){}
       $('#au-user-wrap').hidden = false; $('#au-pin-wrap').hidden = false; $('#au-forgot').hidden = false;
@@ -275,6 +279,7 @@
   /* ---------- موافقة المالك ---------- */
   function askOwner(msg,cb){
     if(isOwner()){ cb(); return; }
+    if(sess && sess.server){ toast('الإجراء ده للمالك بس. اطلب منه يعمله من جهازه.',true); return; }
     approveCb = {cb:cb,msg:msg};
     $('#ap-msg').textContent = msg; $('#ap-pin').value = ''; $('#ap-err').textContent = '';
     $('#approve').hidden = false;
@@ -391,6 +396,7 @@
   function renderSec(){
     if(view!=='sec' || !isOwner() || !sec){ secShown = false; return; }
     if(!secShown){ fillSecFields(); secShown = true; }
+    if(typeof renderCloudCashiers==='function') renderCloudCashiers();
     var s = todayStats();
     var lc = s.closes.length ? s.closes[s.closes.length-1] : null, ld = lc ? closeDiff(lc) : null;
     $('#sec-tiles').innerHTML =

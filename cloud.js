@@ -1,4 +1,4 @@
-window.APP_VER = 'v8';
+window.APP_VER = 'v9';
 /* مخزني — حساب المحل والاشتراك من السحابة (المرحلة 1).
    الدخول بإيميل وباسورد مرة واحدة على الجهاز، والاشتراك بيتقرا من السيرفر ويتجدد من لوحة الإدارة. */
 var CLOUD_KEY = 'makhzani-cloud';
@@ -54,11 +54,13 @@ function cloudVerify(u){
   if(cache && cache.uid!==u.uid) cache = null;
   return FB.get('users/'+u.uid).then(function(us){
     if(!us || !us.shopId) return {err:'noshop'};
+    if(us.disabled===true) return {err:'disabled'};
     return FB.get('shops/'+us.shopId).then(function(sh){
       if(!sh) return {err:'noshop'};
-      return {info:{uid:u.uid,email:u.email,shopId:us.shopId,name:sh.name||'',exp:+sh.expiresAt||0,status:sh.status||'active',checked:Date.now()}};
+      return {info:{uid:u.uid,email:u.email,shopId:us.shopId,name:sh.name||'',exp:+sh.expiresAt||0,status:sh.status||'active',checked:Date.now(),role:us.role||'owner',uname:us.name||''}};
     });
   }).then(function(r){
+    if(r.err==='disabled'){ cloudShow('blocked','الحساب موقوف','المالك أوقف الحساب ده. كلّمه.'); return; }
     if(r.err){ cloudShow('blocked','الحساب مش مربوط بمحل','الحساب ده مش متسجّل كمحل. كلّم الدعم.'); return; }
     cloudSaveCache(r.info); cloudInfo = r.info; cloudDecide(r.info,false);
   },function(e){
@@ -112,13 +114,18 @@ function cloudDataStart(shopId){
     return false;
   }
   cloudStarted = true;
+  var cashier = !!(cloudInfo && cloudInfo.role==='cashier');
   db = FB.shopDb(shopId);
   mode = 'pending';
   products = new Map(); sales = []; suppliers = new Map();
   var fail = function(err){ toast('مشكلة في المزامنة: '+((err && (err.code || err.message)) || ''),true); };
   var got = function(k){
     cloudGot[k] = true;
-    if(cloudGot.p && cloudGot.s && cloudGot.u && cloudGot.m && mode==='pending'){ mode = 'cloud'; render(); gate(); }
+    if(cloudGot.p && cloudGot.s && cloudGot.u && cloudGot.m && mode==='pending'){
+      mode = 'cloud';
+      if(cashier && !sess){ sess = {role:'cashier',id:cloudInfo.uid,name:cloudInfo.uname||'كاشير',server:true}; logA('login','دخول كاشير'); afterLogin(); }
+      render(); gate();
+    }
     else render();
   };
   db.collection('products').onSnapshot(function(snap){
@@ -132,6 +139,15 @@ function cloudDataStart(shopId){
     var mx = invSeq; sales.forEach(function(s){ if(s.no>mx) mx = s.no; }); invSeq = mx; cloudMeta('s',snap);
     got('s');
   },fail);
+  if(cashier){
+    /* الكاشير: مفيش موردين ولا سجل أمان ولا إعدادات حماية. بيقرا بيانات الفاتورة المطبوعة بس */
+    cloudGot.u = true; cloudGot.m = true;
+    sec = {v:1,owner:null,users:[],cfg:{pinInv:true,pinStock:true,autoLock:0,phone:''},used:[]};
+    db.watch('meta/print',function(s){
+      var pc = s.exists() ? s.data() : null;
+      if(pc){ shopCfg = {name:pc.name||'',foot:pc.foot||'',w:pc.w==='58' ? '58' : '80'}; }
+    },function(){});
+  } else {
   db.collection('suppliers').onSnapshot(function(snap){
     var m = new Map();
     snap.docs.forEach(function(d){ var v = d.data(); if(v) m.set(d.id,Object.assign({},v,{id:d.id})); });
@@ -160,11 +176,17 @@ function cloudDataStart(shopId){
     aud = list; cloudMeta('a',snap); cloudAuditMigrate(shopId);
     render();
   },fail);
+  /* حسابات الكاشيرين (للمالك بس) */
+  db.collection('staff').onSnapshot(function(snap){
+    cloudCashiers = snap.docs.map(function(d){ return Object.assign({},d.data(),{id:d.id}); });
+    renderCloudCashiers();
+  },function(){});
+  }
   /* أخطاء الكتابة (اشتراك منتهي، صنف اتمسح…) تظهر للمستخدم */
   window.FB_ONERR = function(e){
     var now = Date.now(); if(now-cloudErrAt<4000) return; cloudErrAt = now;
     var c = (e && e.code) || '';
-    toast(c==='permission-denied' ? 'الحفظ اترفض: الاشتراك منتهي أو موقوف.' : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||(e&&e.message)||'؟')+')',true);
+    toast(c==='permission-denied' ? (cashier ? 'العملية دي مش مسموحة للكاشير، أو الاشتراك موقوف.' : 'الحفظ اترفض: الاشتراك منتهي أو موقوف.') : c==='not-found' ? 'الصنف اتمسح من جهاز تاني.' : 'مشكلة في الحفظ ('+(c||(e&&e.message)||'؟')+')',true);
   };
   return true;
 }
@@ -232,6 +254,8 @@ window.addEventListener('online',function(){ setTimeout(cloudNumberPending,800);
 setInterval(function(){ cloudNumberPending(); },15000);
 /* الفواتير والسجل بيتحمّلوا لآخر فترة بس عشان نوفّر قراءات. النسخة الاحتياطية بتجيب كله من السيرفر. */
 var CLOUD_DAYS = 45;
+/* لرفع النسخ على جوجل درايف: الصق هنا الـ Client ID بتاع Google Cloud (مش سر). سيبه فاضي لو مش عايز الخاصية. */
+var GDRIVE_CLIENT_ID = '';
 function cloudAll(cb){
   if(mode!=='cloud' || !db || !db.listAll){ cb(sales,aud); return; }
   toast('بجيب كل البيانات من السيرفر…');
@@ -332,7 +356,8 @@ function renderCloudInfo(){
 $('#cd-go').addEventListener('click',function(){
   var em = $('#cd-email').value.trim(), pw = $('#cd-pass').value, err = $('#cd-err');
   err.textContent = '';
-  if(!em || !pw){ err.textContent = 'اكتب الإيميل والباسورد.'; return; }
+  if(!em || !pw){ err.textContent = 'اكتب الإيميل (أو اسم الدخول) والباسورد.'; return; }
+  if(em.indexOf('@')<0) em = em.toLowerCase().replace(/\s+/g,'')+'@makhzani.app';
   if(!window.FB){ err.textContent = 'مفيش اتصال بالنت.'; return; }
   FB.signIn(em,pw).then(null,function(e){ err.textContent = cloudErrMsg(e); });
 });
@@ -340,6 +365,7 @@ $('#cd-pass').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.pre
 $('#cd-forgot').addEventListener('click',function(){
   var em = $('#cd-email').value.trim(), err = $('#cd-err');
   if(!em){ err.textContent = 'اكتب الإيميل الأول.'; return; }
+  if(em.indexOf('@')<0 || /@makhzani\.app$/i.test(em)){ err.textContent = 'لو نسيت الباسورد، اطلب من المالك يعملك حساب جديد.'; return; }
   if(!window.FB){ err.textContent = 'مفيش اتصال بالنت.'; return; }
   FB.reset(em).then(function(){ err.textContent = 'لو الإيميل مسجّل هيوصله رابط لتغيير الباسورد.'; },function(e){ err.textContent = cloudErrMsg(e); });
 });
@@ -367,6 +393,127 @@ window.addEventListener('fb-pend',function(){ if(typeof renderStatus==='function
 /* تشغيل بدون نت: خدمة التخزين على الجهاز (بتشتغل على https بس) */
 try{
   if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
-    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=8').catch(function(){}); });
+    window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js?v=9').catch(function(){}); });
   }
 }catch(e){}
+
+/* ---------- حسابات الكاشيرين على السيرفر (المالك بس) ---------- */
+var cloudCashiers = [];
+function cloudSignOut(){
+  try{ localStorage.removeItem(CLOUD_KEY); }catch(e){}
+  var done = function(){ location.reload(); };
+  try{ FB.signOut().then(done,done); }catch(e){ done(); }
+}
+function renderCloudCashiers(){
+  var p = $('#cc-panel'); if(!p) return;
+  var on = (mode==='cloud' && isOwner() && cloudInfo && cloudInfo.role!=='cashier');
+  p.hidden = !on;
+  var old = $('#u-panel'); if(old) old.hidden = !!window.CLOUD_ON;
+  if(!on) return;
+  var l = cloudCashiers.slice().sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); });
+  $('#cc-list').innerHTML = l.length ? l.map(function(u){
+    return '<li class="item"><div class="item-head"><strong>'+esc(u.name)+'</strong>'+(u.disabled ? '<span class="chip local">موقوف</span>' : '<span class="chip db">شغال</span>')+'</div>'+
+      '<div class="meta">اسم الدخول: <b dir="ltr">'+esc(u.username)+'</b></div>'+
+      '<div class="actions"><button class="btn" type="button" data-cc="'+esc(u.id)+'">'+(u.disabled ? 'فعّل' : 'وقّف')+'</button></div></li>';
+  }).join('') : '<li class="empty"><p>لسه مفيش كاشيرين. ضيف أول كاشير من تحت.</p></li>';
+}
+function cloudCcCode(){ return String(cloudInfo.shopId||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,4); }
+$('#cc-form').addEventListener('submit',function(e){
+  e.preventDefault();
+  if(!isOwner() || !cloudInfo){ return; }
+  var name = $('#cc-name').value.trim(), base = $('#cc-user').value.trim().toLowerCase(), pw = $('#cc-pass').value;
+  if(!name){ toast('اكتب اسم الكاشير',true); return; }
+  if(!/^[a-z0-9]{3,16}$/.test(base)){ toast('اسم الدخول: حروف إنجليزي وأرقام بس (من 3 لـ 16)',true); return; }
+  if(pw.length<6){ toast('كلمة السر 6 حروف أو أرقام على الأقل',true); return; }
+  var login = base+'.'+cloudCcCode(), email = login+'@makhzani.app', btn = $('#cc-go');
+  btn.disabled = true;
+  FB.createUser(email,pw).then(function(uid){
+    var prof = {shopId:cloudInfo.shopId,role:'cashier',name:name,username:login,email:email,disabled:false,createdAt:Date.now()};
+    return FB.set('users/'+uid,prof).then(function(){
+      return FB.set('shops/'+cloudInfo.shopId+'/staff/'+uid,{name:name,username:login,disabled:false,createdAt:prof.createdAt});
+    }).then(function(){
+      logA('cfg','إضافة كاشير: '+name+' ('+login+')');
+      $('#cc-form').reset();
+      toast('اتضاف الكاشير. اسم الدخول: '+login);
+    });
+  }).then(null,function(err){
+    var c = (err && err.code) || '';
+    toast(c==='auth/email-already-in-use' ? 'اسم الدخول ده مستخدم. جرّب اسم تاني.' : c==='permission-denied' ? 'مفيش صلاحية لإضافة كاشير (راجع القواعد في Firebase).' : 'معرفتش أضيف الكاشير ('+(c||'؟')+')',true);
+  }).then(function(){ btn.disabled = false; });
+});
+$('#cc-list').addEventListener('click',function(e){
+  var b = e.target.closest('[data-cc]'); if(!b || !isOwner()) return;
+  var u = cloudCashiers.filter(function(x){ return x.id===b.dataset.cc; })[0]; if(!u) return;
+  var dis = !u.disabled;
+  if(dis && !window.confirm('توقيف حساب '+u.name+'؟ مش هيقدر يدخل ولا يبيع لحد ما تفعّله.')) return;
+  FB.set('users/'+u.id,{disabled:dis},true).then(function(){
+    return FB.set('shops/'+cloudInfo.shopId+'/staff/'+u.id,{disabled:dis},true);
+  }).then(function(){ logA('cfg',(dis ? 'إيقاف' : 'تفعيل')+' كاشير: '+u.name); toast(dis ? 'اتوقّف الحساب' : 'اتفعّل الحساب'); },
+    function(err){ toast('معرفتش أغيّر الحساب ('+((err&&err.code)||'؟')+')',true); });
+});
+
+/* ---------- رفع نسخة احتياطية على جوجل درايف (دريف المالك نفسه، فولدر «نسخ مخزني») ---------- */
+var driveTok = null, driveTokExp = 0;
+function driveMsg(t,bad){ var m = $('#b-drive-msg'); if(!m) return; m.hidden = !t; m.textContent = t||''; m.style.color = bad ? 'var(--bad-ink)' : ''; }
+function driveLoadGis(cb){
+  if(window.google && google.accounts && google.accounts.oauth2){ cb(); return; }
+  var s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+  s.onload = cb; s.onerror = function(){ driveMsg('معرفتش أوصل لجوجل. اتأكد من النت وجرّب تاني.',true); $('#b-drive').disabled = false; };
+  document.head.appendChild(s);
+}
+function driveToken(cb){
+  if(driveTok && Date.now() < driveTokExp){ cb(driveTok); return; }
+  var tc = google.accounts.oauth2.initTokenClient({
+    client_id: GDRIVE_CLIENT_ID, scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: function(r){
+      if(!r || r.error || !r.access_token){ driveMsg('اتلغى تسجيل الدخول لجوجل أو اترفض.',true); $('#b-drive').disabled = false; return; }
+      driveTok = r.access_token; driveTokExp = Date.now() + (+r.expires_in||3000)*1000 - 60000; cb(driveTok);
+    },
+    error_callback: function(){ driveMsg('اتلغى تسجيل الدخول لجوجل.',true); $('#b-drive').disabled = false; }
+  });
+  tc.requestAccessToken({prompt: driveTok===null ? 'consent' : ''});
+}
+function driveApi(tok,url,opt){
+  opt = opt || {}; opt.headers = Object.assign({Authorization:'Bearer '+tok},opt.headers||{});
+  return fetch(url,opt).then(function(r){ return r.json().then(function(j){ if(!r.ok){ var e = new Error('drive'); e.status = r.status; e.body = j; throw e; } return j; }); });
+}
+function driveFolder(tok){
+  var q = encodeURIComponent("name='نسخ مخزني' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  return driveApi(tok,'https://www.googleapis.com/drive/v3/files?q='+q+'&fields=files(id)&spaces=drive').then(function(j){
+    if(j.files && j.files.length) return j.files[0].id;
+    return driveApi(tok,'https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'نسخ مخزني',mimeType:'application/vnd.google-apps.folder'})}).then(function(f){ return f.id; });
+  });
+}
+function driveUpload(tok,data){
+  var d = new Date(), p2 = function(n){ return (n<10?'0':'')+n; };
+  var name = 'makhzani-backup-'+d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes())+'.makhzani';
+  return driveFolder(tok).then(function(fid){
+    var b = '----mk'+Date.now();
+    var body = '--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:name,parents:[fid]})+
+      '\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(data)+'\r\n--'+b+'--';
+    return driveApi(tok,'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:body});
+  }).then(function(f){ return f.name || name; });
+}
+$('#b-drive').addEventListener('click',function(){
+  if(!isOwner()) return;
+  if(!GDRIVE_CLIENT_ID){ driveMsg('الخاصية دي لسه متظبطتش. محتاجة Client ID من Google Cloud (الخطوات عند المطوّر).',true); return; }
+  if(!navigator.onLine){ driveMsg('مفيش نت دلوقتي. جرّب لما يرجع.',true); return; }
+  var btn = $('#b-drive'); btn.disabled = true; driveMsg('بجهّز النسخة…');
+  setTimeout(function(){ btn.disabled = false; },30000);
+  driveLoadGis(function(){
+    driveToken(function(tok){
+      driveMsg('بجمّع البيانات…');
+      mkBackupData(function(data){
+        if(!data){ btn.disabled = false; return; }
+        driveMsg('برفع على درايف…');
+        driveUpload(tok,data).then(function(nm){
+          mkBackupDone('جوجل درايف'); driveMsg('اترفعت على درايف بتاعك في فولدر «نسخ مخزني»: '+nm); toast('اترفعت النسخة على جوجل درايف');
+        }).then(null,function(err){
+          if(err && err.status===401){ driveTok = null; driveMsg('انتهت صلاحية الدخول. دوس تاني.',true); }
+          else if(err && err.status===403){ driveMsg('جوجل رفضت. اتأكد إن Drive API متفعلة وإنك وافقت على الصلاحية.',true); }
+          else driveMsg('معرفتش أرفع النسخة. جرّب تاني.',true);
+        }).then(function(){ btn.disabled = false; });
+      });
+    });
+  });
+});

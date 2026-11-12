@@ -96,6 +96,8 @@
               return q.docs.map(function(d){ var v = d.data(); v.id = d.id; return v; });
             });
           },
+          /* متابعة مستند واحد (الكاشير مش بيقرا المجموعة كلها) */
+          watch: function(path,ok,err){ return F.onSnapshot(F.doc(fs,root+path),ok,err); },
           doc: function(path){
             var ref = F.doc(fs,root+path);
             return {
