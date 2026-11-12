@@ -255,7 +255,7 @@ setInterval(function(){ cloudNumberPending(); },15000);
 /* الفواتير والسجل بيتحمّلوا لآخر فترة بس عشان نوفّر قراءات. النسخة الاحتياطية بتجيب كله من السيرفر. */
 var CLOUD_DAYS = 45;
 /* لرفع النسخ على جوجل درايف: الصق هنا الـ Client ID بتاع Google Cloud (مش سر). سيبه فاضي لو مش عايز الخاصية. */
-var GDRIVE_CLIENT_ID = '';
+var GDRIVE_CLIENT_ID = '24820958119-neg9lenq17cr9859mvlhf8idi8c0mgno.apps.googleusercontent.com';
 function cloudAll(cb){
   if(mode!=='cloud' || !db || !db.listAll){ cb(sales,aud); return; }
   toast('بجيب كل البيانات من السيرفر…');
