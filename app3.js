@@ -132,7 +132,7 @@
     return sess.role==='owner';
   }
   function needApproval(kind){
-    if(sess && sess.server) return true;
+    if(sess && sess.server) return kind!=='inv';   /* المرتجع (فواتيره هو) مسموح للكاشير، وباقي حاجات المخزن للمالك */
     if(!sess || sess.role==='owner' || !sec) return false;
     return !!(kind==='inv' ? sec.cfg.pinInv : sec.cfg.pinStock);
   }
@@ -343,12 +343,15 @@
   function renderMine(){
     var el = $('#mine-list'); if(!el) return;
     var t0 = todayStart();
-    var list = sales.filter(function(s){ return s.ts>=t0; }).slice(0,10);
+    var cs = !!(sess && sess.server), h = $('#mine h2');
+    if(h) h.textContent = cs ? 'فواتيري (آخر 7 أيام) — مرتجع / تعديل' : 'آخر فواتير النهارده';
+    var list = cs ? sales.filter(function(s){ return s.by && s.by.id===sess.id && s.ts>=Date.now()-7*86400000; }).slice(0,40)
+                  : sales.filter(function(s){ return s.ts>=t0; }).slice(0,10);
     el.innerHTML = list.length ? list.map(function(s){
       var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
       return '<li><span class="when">'+esc(invCode(s))+' · '+dt(s.ts)+(s.by ? ' · '+esc(s.by.name) : '')+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
         '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button><button type="button" class="btn sm" data-act="print" data-sid="'+esc(s.id)+'">اطبع</button>'+tag+'</div></li>';
-    }).join('') : '<li class="note">مفيش فواتير النهارده.</li>';
+    }).join('') : '<li class="note">'+(cs ? 'مفيش فواتير ليك في آخر 7 أيام.' : 'مفيش فواتير النهارده.')+'</li>';
   }
 
   /* ---------- ملخص اليوم ---------- */
