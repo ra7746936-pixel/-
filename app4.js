@@ -465,7 +465,7 @@
     if(!isOwner()){ toast('الملف ده للمالك بس',true); return; }
     withAll(function(S){ doExportXlsx(S); });
   }
-  function doExportXlsx(sales){
+  function buildExcelBlob(sales){
     var prods = Array.from(products.values()), sups = Array.from(suppliers.values());
     var inv = [['رقم الفاتورة','التاريخ','البائع','الصنف','الكمية','سعر الوحدة','الإجمالي','سعر الجملة','الربح']];
     var rev = 0, profit = 0;
@@ -504,7 +504,10 @@
       ['عدد الموردين',sups.length],
       ['إجمالي أرصدة الموردين (موجب = عليك)',round(totalBal)]];
     var sheets = [['ملخص',sm,[40,22]],['الأصناف',itm,[28,12,10,12,18,16,10,12]],['الفواتير',inv,[14,18,14,28,10,12,12,12,12]],['حركات الموردين',sup,[20,18,10,26,10,12,14,12,24]],['أرصدة الموردين',bal,[22,16,16,12,12,30]]];
-    var blob = xlsxFromSheets(sheets), url = URL.createObjectURL(blob), d = new Date();
+    return xlsxFromSheets(sheets);
+  }
+  function doExportXlsx(sales){
+    var blob = buildExcelBlob(sales), url = URL.createObjectURL(blob), d = new Date();
     var a = document.createElement('a');
     a.href = url;
     a.download = 'makhzani-excel-'+d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'.xlsx';
@@ -878,3 +881,6 @@ $('#imp-go').addEventListener('click',function(){
     toast('اتستورد '+fmt(added+upd)+' صنف');
   })();
 });
+
+/* نسخة كاملة + ملف Excel مقروء (لرفعهم على Drive) */
+window.mkBackupBundle = function(cb){ mkBackupData(function(data){ cb(data, buildExcelBlob(data.sales||[])); }); };

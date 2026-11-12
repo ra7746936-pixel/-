@@ -484,15 +484,21 @@ function driveFolder(tok){
     return driveApi(tok,'https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'نسخ مخزني',mimeType:'application/vnd.google-apps.folder'})}).then(function(f){ return f.id; });
   });
 }
-function driveUpload(tok,data){
+function driveMultipart(tok,fid,name,mime,content){
+  var b = '----mk'+Date.now()+Math.random().toString(36).slice(2,6);
+  var body = new Blob(['--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:name,parents:[fid]})+'\r\n--'+b+'\r\nContent-Type: '+mime+'\r\n\r\n',content,'\r\n--'+b+'--']);
+  return driveApi(tok,'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:body});
+}
+function driveUpload(tok,data,xlsx){
   var d = new Date(), p2 = function(n){ return (n<10?'0':'')+n; };
-  var name = 'makhzani-backup-'+d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes())+'.makhzani';
+  var stamp = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
+  var name = 'makhzani-backup-'+stamp+'.makhzani', xname = 'makhzani-excel-'+stamp+'.xlsx';
   return driveFolder(tok).then(function(fid){
-    var b = '----mk'+Date.now();
-    var body = '--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:name,parents:[fid]})+
-      '\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+JSON.stringify(data)+'\r\n--'+b+'--';
-    return driveApi(tok,'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:body});
-  }).then(function(f){ return f.name || name; });
+    return driveMultipart(tok,fid,name,'application/json',JSON.stringify(data)).then(function(f){
+      if(!xlsx) return f.name || name;
+      return driveMultipart(tok,fid,xname,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',xlsx).then(function(){ return (f.name || name)+' + '+xname; });
+    });
+  });
 }
 $('#b-drive').addEventListener('click',function(){
   if(!isOwner()) return;
@@ -503,11 +509,11 @@ $('#b-drive').addEventListener('click',function(){
   driveLoadGis(function(){
     driveToken(function(tok){
       driveMsg('بجمّع البيانات…');
-      mkBackupData(function(data){
+      mkBackupBundle(function(data,xlsx){
         if(!data){ btn.disabled = false; return; }
         driveMsg('برفع على درايف…');
-        driveUpload(tok,data).then(function(nm){
-          mkBackupDone('جوجل درايف'); driveMsg('اترفعت على درايف بتاعك في فولدر «نسخ مخزني»: '+nm); toast('اترفعت النسخة على جوجل درايف');
+        driveUpload(tok,data,xlsx).then(function(nm){
+          mkBackupDone('جوجل درايف'); driveMsg('اترفع ملفين في فولدر «نسخ مخزني» على درايف بتاعك: ملف Excel تقدر تفتحه وتقراه، وملف .makhzani للاسترجاع بس. ('+nm+')'); toast('اترفعت النسخة على جوجل درايف');
         }).then(null,function(err){
           if(err && err.status===401){ driveTok = null; driveMsg('انتهت صلاحية الدخول. دوس تاني.',true); }
           else if(err && err.status===403){ driveMsg('جوجل رفضت. اتأكد إن Drive API متفعلة وإنك وافقت على الصلاحية.',true); }
