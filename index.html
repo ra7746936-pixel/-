@@ -61,6 +61,7 @@ setTimeout(function(){
           <select id="ie-add" aria-label="صنف يتضاف للفاتورة"></select>
           <button class="btn" type="button" data-act="ie-addbtn">+ ضيف للفاتورة</button>
         </div>
+        <div class="fee-row"><label for="ie-fee">خدمة التوصيل</label><input id="ie-fee" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></div>
         <div class="total"><span>إجمالي الفاتورة بعد التعديل</span><strong id="ie-total">0 ج.م</strong></div>
         <p class="sum-line" id="ie-diff"></p>
         <div class="row-actions">
@@ -80,6 +81,7 @@ setTimeout(function(){
         <div class="panel cart">
           <h2>الفاتورة</h2>
           <ul id="cart" class="clist"></ul>
+          <div class="fee-row"><label for="fee">خدمة التوصيل (لو فيه)</label><input id="fee" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></div>
           <div class="total"><span>الإجمالي</span><strong id="total">0 ج.م</strong></div>
           <button id="checkout" class="btn primary big" type="button">تأكيد البيع</button>
           <div id="last-sale" class="last-sale" hidden><span id="ls-txt"></span><button type="button" class="btn sm" data-act="print" data-sid="">اطبع الفاتورة</button></div>

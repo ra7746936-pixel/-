@@ -16,6 +16,7 @@
   var lastOpts = '';
   var sales = [];
   var cart = {};
+  function feeVal(){ var v = parseFloat($('#fee').value); return v>0 ? round(v) : 0; }
   var view = 'sell';
   var period = 'today';
   var editingId = null;
@@ -224,7 +225,7 @@
         '<button type="button" data-act="inc" data-id="'+esc(id)+'" aria-label="زوّد">+</button></div>'+
         '<button type="button" class="rm" data-act="rm" data-id="'+esc(id)+'" aria-label="شيل من الفاتورة">×</button></li>';
     }).join('') : '<li class="note">اضغط على الأصناف اللي عايز تبيعها.</li>';
-    $('#total').textContent = money(total);
+    $('#total').textContent = money(total + (ids.length ? feeVal() : 0));
     $('#checkout').disabled = !ids.length;
     var ls = lastSaleId ? findSale(lastSaleId) : null;
     $('#last-sale').hidden = !ls;

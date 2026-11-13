@@ -2,12 +2,13 @@
   /* ---------- مرتجعات وتعديل الفواتير ---------- */
   function findSale(id){ for(var i=0;i<sales.length;i++){ if(sales[i].id===id) return sales[i]; } return null; }
   function maxFor(d){ var p = products.get(d.pid); return round(d.orig + (p ? p.qty : 0)); }
-  function draftTotal(){ var t = 0; draft.forEach(function(d){ t += d.qty*d.price; }); return round(t); }
+  function editFee(){ var v = parseFloat($('#ie-fee').value); return v>0 ? round(v) : 0; }
+  function draftTotal(){ var t = 0; draft.forEach(function(d){ t += d.qty*d.price; }); return round(t+editFee()); }
 
   function openInvEdit(sid){
     var s = findSale(sid);
     if(!s) return;
-    editSale = sid; pendingCancelInv = false;
+    editSale = sid; pendingCancelInv = false; $('#ie-fee').value = s.fee>0 ? s.fee : '';
     draft = s.lines.map(function(l){ return {pid:l.pid,name:l.name,price:l.price,cost:(l.cost==null?null:l.cost),qty:l.qty,orig:l.qty}; });
     render();
     var el = $('#inv-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
@@ -73,7 +74,7 @@
     var total = draftTotal(), diff = round(total-s.total);
     var ns = Object.assign({},s,{
       lines:kept.map(function(d){ return {pid:d.pid,name:d.name,qty:d.qty,price:d.price,cost:d.cost}; }),
-      total:total,
+      total:total, fee:editFee(),
       edits:(s.edits||[]).concat([{ts:Date.now(),from:s.total,to:total,by:(sess?sess.name:'')}])
     });
     var chg = draft.filter(function(d){ return d.qty!==d.orig; }).map(function(d){ return d.name+': '+fmt(d.orig)+'←'+fmt(d.qty); }).join('، ');
@@ -307,6 +308,7 @@
     return '<div class="rc-shop">'+esc(shopCfg.name||'مخزني')+'</div>'+
       '<div class="rc-meta">'+dt(s.ts)+' · فاتورة '+esc(invCode(s))+'</div>'+
       '<table><thead><tr><th class="rn">الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      (s.fee>0 ? '<div class="rc-fee"><span>خدمة التوصيل</span><span>'+money(s.fee)+'</span></div>' : '')+
       '<div class="rc-total"><span>الإجمالي</span><strong>'+money(s.total)+'</strong></div>'+
       (shopCfg.foot ? '<div class="rc-foot">'+esc(shopCfg.foot)+'</div>' : '');
   }
@@ -384,6 +386,7 @@
         var hasC = !(l.cost==null || !isFinite(+l.cost));
         rows.push([dt(s.ts),invCode(s),l.name,l.qty,l.price,round(l.qty*l.price),(hasC?l.cost:''),(hasC?round((l.price-l.cost)*l.qty):'')]);
       });
+      if(s.fee>0) rows.push([dt(s.ts),invCode(s),'خدمة توصيل',1,s.fee,s.fee,'','']);
     });
     downloadCsv('invoices-'+period,rows);
   }
@@ -417,7 +420,10 @@
     });
     if(bad){ toast('المتاح من '+bad.name+' '+fmt(bad.qty)+' بس',true); return; }
     if(!lines.length) return;
+    var fee = feeVal(); total += fee;
     var sale = {id:uid(),ts:Date.now(),lines:lines,total:round(total)};
+    if(fee>0) sale.fee = fee;
+    $('#fee').value = '';
     if(sess) sale.by = {id:sess.id,name:sess.name};
     cart = {};
     if(mode==='cloud'){
@@ -530,6 +536,7 @@
         });
         var eds = (Array.isArray(s.edits)?s.edits:[]).filter(function(x){ return x && isFinite(+x.ts); }).map(function(x){ return {ts:+x.ts,from:num(x.from,0),to:num(x.to,0),by:String(x.by||'')}; });
         var one = {id:String(s.id||uid()),ts:+s.ts,lines:lines,total:num(s.total,0)};
+        if(+s.fee>0) one.fee = round(+s.fee);
         if(+s.no>0) one.no = Math.floor(+s.no);
         if(eds.length) one.edits = eds;
         if(s.by && s.by.name) one.by = {id:String(s.by.id||''),name:String(s.by.name)};

@@ -179,6 +179,8 @@
     renderSell();
   });
 
+  $('#ie-fee').addEventListener('input',function(){ renderInvEdit(); });
+  $('#fee').addEventListener('input',function(){ render(); });
   $('#ie-lines').addEventListener('change',function(e){
     var inp = e.target.closest('[data-iqty]');
     if(!inp) return;
@@ -475,6 +477,7 @@
         rev += tot; if(hasC) profit += (l.price-l.cost)*l.qty;
         inv.push([invCode(s),dt(s.ts),s.by ? s.by.name : '',l.name,l.qty,l.price,tot,hasC ? l.cost : '',hasC ? round((l.price-l.cost)*l.qty) : '']);
       });
+      if(s.fee>0){ rev += s.fee; inv.push([invCode(s),dt(s.ts),s.by ? s.by.name : '','خدمة توصيل',1,s.fee,s.fee,'',s.fee]); profit += s.fee; }
     });
     var stockVal = 0;
     var itm = [['الصنف','سعر البيع','الكمية المتبقية','الحالة','القطع في الكرتونة','الكراتين المتبقية','سعر الجملة','قيمة المخزون (جملة)','الباركود','اتباع (قطعة)','إجمالي الإيراد']];
