@@ -16,6 +16,12 @@
   var lastOpts = '';
   var sales = [];
   var cart = {};
+  /* عرض الكمية: كرتونة كاملة تتكتب "1 كرتونة" مش 20 كيس */
+  function qtyText(q,pack){
+    if(!(pack>1) || q<pack) return fmt(q);
+    var c = Math.floor(q/pack), r = round(q-c*pack);
+    return fmt(c)+' كرتونة'+(r>0 ? ' و '+fmt(r)+' قطعة' : '');
+  }
   function feeVal(){ var v = parseFloat($('#fee').value); return v>0 ? round(v) : 0; }
   var view = 'sell';
   var period = 'today';
@@ -219,7 +225,7 @@
     var ids = Object.keys(cart), total = 0;
     $('#cart').innerHTML = ids.length ? ids.map(function(id){
       var p = products.get(id), q2 = cart[id], sub = q2*p.price; total += sub;
-      return '<li class="cline"><div class="cl-name">'+esc(p.name)+'<small>'+fmt(p.price)+' × '+fmt(q2)+' = '+money(sub)+(p.pack>1 && q2>=p.pack ? ' ('+fmt(Math.floor(q2/p.pack))+' كرتونة'+(round(q2%p.pack)>0 ? ' و '+fmt(round(q2%p.pack))+' قطعة' : '')+')' : '')+'</small></div>'+
+      return '<li class="cline"><div class="cl-name">'+esc(p.name)+'<small>'+(p.pack>1 && q2>=p.pack ? '<b>'+esc(qtyText(q2,p.pack))+'</b> ('+fmt(q2)+' قطعة) · ' : '')+fmt(p.price)+' × '+fmt(q2)+' = '+money(sub)+'</small></div>'+
         '<div class="step"><button type="button" data-act="dec" data-id="'+esc(id)+'" aria-label="نقّص">−</button>'+
         '<input type="number" inputmode="decimal" min="0" step="any" value="'+q2+'" data-qty="'+esc(id)+'" aria-label="الكمية">'+
         '<button type="button" data-act="inc" data-id="'+esc(id)+'" aria-label="زوّد">+</button></div>'+
@@ -314,7 +320,7 @@
     $('#recent').innerHTML = recent.length ? recent.map(function(s){
       var when = dt(s.ts);
       var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
-      return '<li><span class="when">'+esc(invCode(s))+' · '+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
+      return '<li><span class="when">'+esc(invCode(s))+' · '+when+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+esc(qtyText(l.qty,l.pack)); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
         '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button><button type="button" class="btn sm" data-act="print" data-sid="'+esc(s.id)+'">اطبع</button>'+tag+'</div></li>';
     }).join('') : '<li class="note">مفيش فواتير في الفترة دي.</li>';
   }

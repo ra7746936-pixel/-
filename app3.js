@@ -24,7 +24,7 @@
   function hh(str){ return h53(str,1)+h53(str,2); }
 
   function invCode(s){ return s.no>0 ? '#'+s.no : (s.pn ? 'قيد الترقيم' : String(s.id).slice(-5).toUpperCase()); }
-  function linesText(ls){ return ls.map(function(l){ return l.name+' ×'+fmt(l.qty)+' بـ '+fmt(l.price); }).join('، '); }
+  function linesText(ls){ return ls.map(function(l){ return l.name+' ×'+qtyText(l.qty,l.pack)+' بـ '+fmt(l.price); }).join('، '); }
   function todayStart(){ var d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 
   /* ---------- تخزين ---------- */
@@ -349,7 +349,7 @@
                   : sales.filter(function(s){ return s.ts>=t0; }).slice(0,10);
     el.innerHTML = list.length ? list.map(function(s){
       var tag = (s.edits && s.edits.length) ? '<span class="pill warn">اتعدّلت</span>' : '';
-      return '<li><span class="when">'+esc(invCode(s))+' · '+dt(s.ts)+(s.by ? ' · '+esc(s.by.name) : '')+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+fmt(l.qty); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
+      return '<li><span class="when">'+esc(invCode(s))+' · '+dt(s.ts)+(s.by ? ' · '+esc(s.by.name) : '')+'</span><span class="what">'+s.lines.map(function(l){ return esc(l.name)+' ×'+esc(qtyText(l.qty,l.pack)); }).join('، ')+'</span><span class="sum">'+money(s.total)+'</span>'+
         '<div class="inv-act"><button type="button" class="btn sm" data-act="editinv" data-sid="'+esc(s.id)+'">مرتجع / تعديل</button><button type="button" class="btn sm" data-act="print" data-sid="'+esc(s.id)+'">اطبع</button>'+tag+'</div></li>';
     }).join('') : '<li class="note">'+(cs ? 'مفيش فواتير ليك في آخر 7 أيام.' : 'مفيش فواتير النهارده.')+'</li>';
   }

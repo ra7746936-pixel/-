@@ -9,7 +9,7 @@
     var s = findSale(sid);
     if(!s) return;
     editSale = sid; pendingCancelInv = false; $('#ie-fee').value = s.fee>0 ? s.fee : '';
-    draft = s.lines.map(function(l){ return {pid:l.pid,name:l.name,price:l.price,cost:(l.cost==null?null:l.cost),qty:l.qty,orig:l.qty}; });
+    draft = s.lines.map(function(l){ return {pid:l.pid,name:l.name,price:l.price,cost:(l.cost==null?null:l.cost),pack:(l.pack>1?l.pack:0),qty:l.qty,orig:l.qty}; });
     render();
     var el = $('#inv-edit'); if(el.scrollIntoView) el.scrollIntoView({block:'start'});
   }
@@ -73,7 +73,7 @@
     if(bad){ toast('المتاح من '+bad.name+' مش كفاية',true); return; }
     var total = draftTotal(), diff = round(total-s.total);
     var ns = Object.assign({},s,{
-      lines:kept.map(function(d){ return {pid:d.pid,name:d.name,qty:d.qty,price:d.price,cost:d.cost}; }),
+      lines:kept.map(function(d){ var o = {pid:d.pid,name:d.name,qty:d.qty,price:d.price,cost:d.cost}; if(d.pack>1) o.pack = d.pack; return o; }),
       total:total, fee:editFee(),
       edits:(s.edits||[]).concat([{ts:Date.now(),from:s.total,to:total,by:(sess?sess.name:'')}])
     });
@@ -303,6 +303,14 @@
   }
   function buildReceipt(s){
     var rows = s.lines.map(function(l){
+      var row = function(nm,q,pr){ return '<tr><td class="rn">'+nm+'</td><td>'+q+'</td><td>'+fmt(pr)+'</td><td>'+fmt(round(pr*(typeof q==='number' ? q : parseFloat(q))))+'</td></tr>'; };
+      if(l.pack>1 && l.qty>=l.pack){
+        /* الكرتونة الكاملة في سطر: "2 كرتونة × سعر الكرتونة"، والباقي قطع في سطر تاني */
+        var c = Math.floor(l.qty/l.pack), r = round(l.qty-c*l.pack), out = '';
+        out += '<tr><td class="rn">'+esc(l.name)+' (كرتونة '+fmt(l.pack)+')</td><td>'+fmt(c)+' كرتونة</td><td>'+fmt(round(l.pack*l.price))+'</td><td>'+fmt(round(c*l.pack*l.price))+'</td></tr>';
+        if(r>0) out += '<tr><td class="rn">'+esc(l.name)+'</td><td>'+fmt(r)+' قطعة</td><td>'+fmt(l.price)+'</td><td>'+fmt(round(r*l.price))+'</td></tr>';
+        return out;
+      }
       return '<tr><td class="rn">'+esc(l.name)+'</td><td>'+fmt(l.qty)+'</td><td>'+fmt(l.price)+'</td><td>'+fmt(round(l.qty*l.price))+'</td></tr>';
     }).join('');
     return '<div class="rc-shop">'+esc(shopCfg.name||'مخزني')+'</div>'+
@@ -414,7 +422,7 @@
       var p = products.get(pid), q = cart[pid];
       if(!p || !(q>0)) return;
       if(q>p.qty){ bad = p; return; }
-      lines.push({pid:pid,name:p.name,qty:q,price:p.price,cost:(p.cost==null?null:p.cost)});
+      var ln = {pid:pid,name:p.name,qty:q,price:p.price,cost:(p.cost==null?null:p.cost)}; if(p.pack>1) ln.pack = p.pack; lines.push(ln);
       total += q*p.price;
       updated.push(Object.assign({},p,{qty:round(p.qty-q),sold:round((p.sold||0)+q),revenue:round((p.revenue||0)+q*p.price)}));
     });
@@ -532,7 +540,7 @@
     d.sales.forEach(function(s){
       if(s && isFinite(+s.ts) && Array.isArray(s.lines)){
         var lines = s.lines.filter(function(l){ return l && l.pid; }).map(function(l){
-          return {pid:String(l.pid),name:String(l.name||''),qty:num(l.qty,0),price:num(l.price,0),cost:((l.cost==null||!isFinite(+l.cost))?null:+l.cost)};
+          var o = {pid:String(l.pid),name:String(l.name||''),qty:num(l.qty,0),price:num(l.price,0),cost:((l.cost==null||!isFinite(+l.cost))?null:+l.cost)}; if(+l.pack>1) o.pack = Math.floor(+l.pack); return o;
         });
         var eds = (Array.isArray(s.edits)?s.edits:[]).filter(function(x){ return x && isFinite(+x.ts); }).map(function(x){ return {ts:+x.ts,from:num(x.from,0),to:num(x.to,0),by:String(x.by||'')}; });
         var one = {id:String(s.id||uid()),ts:+s.ts,lines:lines,total:num(s.total,0)};
